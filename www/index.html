@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>동요 리듬 놀이</title>
+<style>
+  body{margin:0;font-family:sans-serif;background:#fff7e6;color:#333;text-align:center;user-select:none}
+  h1{margin:12px 0 4px;font-size:24px}
+  .row{margin:8px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  select,button{font-size:18px;padding:8px 14px;border-radius:12px;border:2px solid #f0a040;background:#fff}
+  canvas{width:100%;max-width:720px;height:140px;background:#fff;border-radius:16px;box-shadow:0 2px 8px #0002}
+  #face{font-size:72px;height:90px}
+  #msg{font-size:22px;font-weight:bold;height:30px}
+  #hit{width:180px;height:180px;border-radius:50%;font-size:28px;font-weight:bold;background:#ff8c42;color:#fff;border:none;margin:10px;touch-action:manipulation}
+  #hit:active{transform:scale(.93);background:#ff6b1a}
+</style>
+</head>
+<body>
+<h1>🎵 동요 리듬 놀이</h1>
+<div class="row">
+  <select id="song"></select>
+  <select id="inst"><option value="piano">🎹 피아노</option><option value="drum">🥁 드럼</option></select>
+  <button id="listen">👂 듣기</button>
+  <button id="start">▶ 시작</button>
+</div>
+<div id="face">😺</div>
+<div id="msg">시작을 누르고 동그라미가 오면 쳐요!</div>
+<canvas id="cv" width="720" height="140"></canvas>
+<div>점수: <b id="score">0</b></div>
+<button id="hit">톡!</button>
+<p style="color:#888">키보드 스페이스바로도 칠 수 있어요</p>
+
+<script>
+// 곡 데이터: 음이름(소문자=한 옥타브 위) + 박자수(생략시 1)
+const SONGS = {
+  "반짝반짝 작은별": "C C G G A A G2 F F E E D D C2 G G F F E E D2 G G F F E E D2 C C G G A A G2 F F E E D D C2",
+  "나비야": "G E E2 F D D2 C D E F G G G2 G E E E F D D D C E G G E E E2",
+  "비행기": "E D C D E E E2 D D D2 E G G2 E D C D E E E E D D E D C2"
+};
+const BPM = 90, BEAT = 60 / BPM, LEAD = 4; // 4박 준비
+const FREQ = {C:261.63,D:293.66,E:329.63,F:349.23,G:392,A:440,B:493.88};
+
+const $ = id => document.getElementById(id);
+Object.keys(SONGS).forEach(n => $('song').add(new Option(n, n)));
+
+let ac, notes = [], t0 = 0, playing = false, score = 0, idx = 0;
+
+function audio(){ ac = ac || new (window.AudioContext||window.webkitAudioContext)(); ac.resume(); return ac; }
+
+function parse(str){
+  let beat = 0;
+  return str.split(' ').map(tok => {
+    const L = tok[0], len = +tok.slice(1) || 1;
+    const f = FREQ[L.toUpperCase()] * (L === L.toLowerCase() ? 2 : 1);
+    const n = {f, beat, len, judged:false};
+    beat += len; return n;
+  });
+}
+
+function piano(f, when = 0, dur = .5){
+  const a = audio(), t = when || a.currentTime;
+  [1, 2].forEach((m, i) => {
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = i ? 'sine' : 'triangle'; o.frequency.value = f * m;
+    g.gain.setValueAtTime(i ? .08 : .3, t);
+    g.gain.exponentialRampToValueAtTime(.001, t + dur);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur);
+  });
+}
+
+function drum(when = 0, high = false){
+  const a = audio(), t = when || a.currentTime;
+  const o = a.createOscillator(), g = a.createGain();
+  o.frequency.setValueAtTime(high ? 300 : 150, t);
+  o.frequency.exponentialRampToValueAtTime(50, t + .15);
+  g.gain.setValueAtTime(.8, t); g.gain.exponentialRampToValueAtTime(.001, t + .25);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + .25);
+  // 잡음(스네어 느낌)
+  const buf = a.createBuffer(1, a.sampleRate * .1, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * (1 - i/d.length);
+  const s = a.createBufferSource(), sg = a.createGain();
+  s.buffer = buf; sg.gain.value = high ? .3 : .1;
+  s.connect(sg).connect(a.destination); s.start(t);
+}
+
+function sound(n, when){ $('inst').value === 'drum' ? drum(when, n && n.len < 2) : piano(n ? n.f : 523, when); }
+function tick(when){ const a = audio(), o = a.createOscillator(), g = a.createGain();
+  o.frequency.value = 1000; g.gain.setValueAtTime(.15, when); g.gain.exponentialRampToValueAtTime(.001, when+.05);
+  o.connect(g).connect(a.destination); o.start(when); o.stop(when+.05); }
+
+$('listen').onclick = () => {
+  const a = audio(), s = a.currentTime + .2;
+  parse(SONGS[$('song').value]).forEach(n => sound(n, s + n.beat * BEAT));
+};
+
+$('start').onclick = () => {
+  const a = audio();
+  notes = parse(SONGS[$('song').value]);
+  t0 = a.currentTime + LEAD * BEAT;
+  for (let i = 0; i < LEAD; i++) tick(a.currentTime + i * BEAT);
+  score = 0; idx = 0; playing = true;
+  $('score').textContent = 0; react('😺', '준비~ 하나, 둘, 셋, 넷!');
+  requestAnimationFrame(draw);
+};
+
+function react(face, msg){ $('face').textContent = face; $('msg').textContent = msg; }
+
+function hit(){
+  if (!playing) { sound(null); return; }
+  const now = ac.currentTime;
+  // 아직 판정 안 된 가장 가까운 음 찾기
+  let best = null, bd = 1e9;
+  for (const n of notes) if (!n.judged) {
+    const d = Math.abs(now - (t0 + n.beat * BEAT));
+    if (d < bd) { bd = d; best = n; }
+  }
+  sound(best);
+  if (!best || bd > .3) return;
+  best.judged = true;
+  if (bd < .08)      { score += 100; best.res = 'p'; react('😻', '최고예요! 💯'); }
+  else if (bd < .18) { score += 50;  best.res = 'g'; react('😸', '좋아요! 👍'); }
+  else               {               best.res = 'm'; react('🙀', '조금 아쉬워요'); }
+  $('score').textContent = score;
+}
+
+$('hit').addEventListener('pointerdown', e => { e.preventDefault(); hit(); });
+addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat) { e.preventDefault(); hit(); } });
+
+const cv = $('cv'), cx = cv.getContext('2d'), HX = 80, PX = 120; // 판정선 x, 1박당 픽셀
+function draw(){
+  if (!playing) return;
+  const now = ac.currentTime;
+  cx.clearRect(0, 0, cv.width, cv.height);
+  cx.fillStyle = '#ffe0b3'; cx.beginPath(); cx.arc(HX, 70, 34, 0, 7); cx.fill();
+  let left = 0;
+  for (const n of notes) {
+    const t = t0 + n.beat * BEAT;
+    if (!n.judged && now - t > .3) { n.judged = true; n.res = 'm'; react('😿', '놓쳤어요~'); }
+    const x = HX + (t - now) / BEAT * PX;
+    if (!n.judged) left++;
+    if (x < -40 || x > cv.width + 40) continue;
+    cx.fillStyle = {p:'#7c4', g:'#4ad', m:'#ccc'}[n.res] || '#ff8c42';
+    cx.beginPath(); cx.arc(x, 70, n.len > 1 ? 28 : 22, 0, 7); cx.fill();
+  }
+  if (!left) return finish();
+  requestAnimationFrame(draw);
+}
+
+function finish(){
+  playing = false;
+  const pct = Math.round(score / (notes.length * 100) * 100);
+  const stars = pct >= 85 ? '⭐⭐⭐' : pct >= 60 ? '⭐⭐' : '⭐';
+  react(pct >= 85 ? '🥳' : pct >= 60 ? '😊' : '🤗', `끝! 정확도 ${pct}% ${stars}`);
+}
+</script>
+</body>
+</html>
