@@ -32,6 +32,7 @@
   .b{position:absolute;top:0;width:7%;height:60%;background:#222;border-radius:0 0 6px 6px;z-index:2}
   .w.hint{background:linear-gradient(#fff 30%, var(--c))}
   .w.on{background:#ffd27a}.b.on{background:#666}
+  .b.hint{background:linear-gradient(#222 30%, #ff8c42)}
   #hit{width:min(170px,32vh);height:min(170px,32vh);flex-shrink:0;border-radius:50%;font-size:28px;font-weight:bold;background:#ff8c42;color:#fff;border:none;margin:8px auto;display:block;touch-action:none}
   #hit.on{transform:scale(.93);background:#ff6b1a}
   #stage{position:relative}
@@ -82,7 +83,7 @@
     <div class="row"><b>✏️ 내 노래</b><input id="mkName" placeholder="노래 이름" maxlength="20">
       <button id="mkTry">👂 듣기</button><button id="mkBack">⌫ 한 음 지우기</button><button id="mkSave">💾 저장</button><button id="mkDel">🗑 삭제</button><button id="mkClose">닫기</button></div>
     <textarea id="mkNotes" rows="2" placeholder="아래 건반을 누르거나 직접 적어요. 예) 도 도 솔 솔 라 라 솔2"></textarea>
-    <small class="mkHelp">길게 칠 음은 뒤에 박자 수(2, 3, .5)를 붙여요. 높은 도는 '높은도'</small>
+    <small class="mkHelp">길게 칠 음은 뒤에 박자 수(2, 3, .5)를 붙여요. 높은 도는 '높은도', 반음은 '시♭'처럼 써요</small>
     <div id="mkMsg" style="color:#e03131;font-weight:bold"></div>
   </div>
   <div id="result" class="panel" hidden>
@@ -94,10 +95,10 @@
   <div id="piano"></div>
   <button id="hit" hidden>톡!</button>
 </div>
-<p class="hint">키보드: A S D F G H J K = 도~높은도 (드럼은 스페이스바)</p>
+<p class="hint">키보드: A S D F G H J K = 도~높은도, W E T Y U = 검은건반 (드럼은 스페이스바)</p>
 
 <script>
-// 곡 데이터 (모두 저작권이 끝난 전래/고전 곡): 음이름(c=높은 도) + 박자수(생략시 1, .5=반박)
+// 곡 데이터 (모두 저작권이 끝난 전래/고전 곡): 음이름(c=높은 도, 뒤에 #/b는 반음) + 박자수(생략시 1, .5=반박)
 const SONGS = {
   // lv: 1 쉬움, 2 보통, 3 어려움 / m: 한 마디 박자 수(기본 4)
   "뜨거운 빵":         {lv:1, bpm:90,  n:"E D C2 E D C2 C.5 C.5 C.5 C.5 D.5 D.5 D.5 D.5 E D C2"},
@@ -108,6 +109,7 @@ const SONGS = {
   "환희의 송가":       {lv:2, bpm:100, n:"E E F G G F E D C C D E E1.5 D.5 D2 E E F G G F E D C C D E D1.5 C.5 C2"},
   "성자의 행진":       {lv:2, bpm:110, n:"C E F G4 C E F G4 C E F G2 E2 C2 E2 D4 E E D C3 C E G G F3 E F G2 E2 C2 D2 C4"},
   "맥도날드 농장":     {lv:2, bpm:110, n:"G G G D E E D2 B B A A G3 D G G G D E E D2 B B A A G3"},
+  "생일 축하 노래":    {lv:2, bpm:100, m:3, n:"C.5 C.5 D C F E2 C.5 C.5 D C G F2 C.5 C.5 c A F E D Bb.5 Bb.5 A F G F2"},
   "징글벨":            {lv:3, bpm:110, n:"E E E2 E E E2 E G C1.5 D.5 E4 F F F1.5 F.5 F E E E.5 E.5 E D D E D2 G2"},
   "아침 종소리":       {lv:3, bpm:100, n:"C D E C C D E C E F G2 E F G2 G.5 A.5 G.5 F.5 E C G.5 A.5 G.5 F.5 E C C G C2 C G C2"}
 };
@@ -122,7 +124,17 @@ const NAMES = ['도','레','미','파','솔','라','시','도'];
 const FREQ = [261.63,293.66,329.63,349.23,392,440,493.88,523.25];
 const COLORS = ['#ff6b6b','#ffa94d','#ffd43b','#69db7c','#4dabf7','#748ffc','#da77f2','#ff6b6b'];
 const BLACK = [[0,277.18],[1,311.13],[3,369.99],[4,415.3],[5,466.16]]; // [왼쪽 흰건반 번호, 주파수]
-const KB = 'asdfghjk';
+const KB = 'asdfghjk', KB_B = 'wetyu'; // PC 키보드: 흰건반 / 검은건반
+const BNAMES = {ko: ['레♭','미♭','솔♭','라♭','시♭'], en: ['Db','Eb','Gb','Ab','Bb']};
+// 음이름 → 건반 번호 (흰건반 0~7, 검은건반 8~12, 없는 음은 -1)
+function keyOf(letter, acc){
+  const w = KEYS.indexOf(letter);
+  if (!acc || w < 0) return w;
+  const i = BLACK.findIndex(b => b[0] === (acc === '#' ? w : w - 1));
+  return i < 0 ? -1 : 8 + i;
+}
+const freqOf = k => k < 8 ? FREQ[k] : BLACK[k - 8][1];
+const colorOf = k => k < 8 ? COLORS[k] : '#495057';
 
 const $ = id => document.getElementById(id);
 const LV = ["", "🟢 쉬움", "🟡 보통", "🔴 어려움", "✏️ 내 노래"];
@@ -201,7 +213,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && pla
 function parse(str){
   let beat = 0;
   return str.split(' ').map(tok => {
-    const k = KEYS.indexOf(tok[0]), len = +tok.slice(1) || 1;
+    const acc = /^[#b]$/.test(tok[1] || '') ? tok[1] : '';
+    const k = keyOf(tok[0], acc), len = +tok.slice(1 + acc.length) || 1;
     const n = {k, beat, len, judged:false};
     beat += len; return n;
   });
@@ -272,12 +285,13 @@ const whiteEls = KEYS.map((_, i) => {
   el.onpointerdown = e => { e.preventDefault(); press(el, i); };
   $('piano').append(el); return el;
 });
-BLACK.forEach(([i, f]) => {
+const blackEls = BLACK.map(([i], j) => {
   const el = document.createElement('div');
   el.className = 'b'; el.style.left = `calc(${(i + 1) / 8 * 100}% - 3.5%)`;
-  el.onpointerdown = e => { e.preventDefault(); flash(el); piano(f); };
-  $('piano').append(el);
+  el.onpointerdown = e => { e.preventDefault(); press(el, 8 + j); };
+  $('piano').append(el); return el;
 });
+const keyEls = [...whiteEls, ...blackEls];
 $('hit').onpointerdown = e => { e.preventDefault(); press($('hit'), -1); };
 
 function flash(el){ el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 120); }
@@ -285,6 +299,7 @@ function flash(el){ el.classList.add('on'); setTimeout(() => el.classList.remove
 // 건반 글자: 도레미 / CDE / 없음
 const LABELS = {ko: NAMES, en: ['C','D','E','F','G','A','B','C'], none: Array(8).fill('')};
 const lab = () => LABELS[$('label').value];
+const labelOf = k => k < 8 ? lab()[k] : $('label').value === 'none' ? '' : BNAMES[$('label').value][k - 8];
 const updateLabels = () => whiteEls.forEach((el, i) => el.textContent = lab()[i]);
 
 // 설정 저장/불러오기 (기기에 저장, 실패해도 무시)
@@ -306,12 +321,17 @@ $('setBtn').onclick = () => { if (playing && !paused) $('pause').onclick(); $('r
 $('setClose').onclick = () => $('settings').hidden = true;
 // ---------- 내 노래 만들기 ----------
 const KO = {'도':'C','레':'D','미':'E','파':'F','솔':'G','라':'A','시':'B','높은도':'c'};
-const toKo = s => s.split(' ').map(t => (Object.keys(KO).find(k => KO[k] === t[0]) || t[0]) + t.slice(1)).join(' ');
+const toKo = s => s.split(' ').map(t => {
+  const acc = /^[#b]$/.test(t[1] || '') ? t[1] : '';
+  return (Object.keys(KO).find(k => KO[k] === t[0]) || t[0]) + ({'#': '♯', b: '♭'}[acc] || '') + t.slice(1 + acc.length);
+}).join(' ');
 function toNotes(text){ // "도 레2 높은도.5" → "C D2 c.5" (잘못된 글자는 throw)
   const out = text.trim().split(/[\s,]+/).filter(Boolean).map(tok => {
-    const m = tok.match(/^(높은도|도|레|미|파|솔|라|시|[A-G]|c)(\d*\.?\d*)$/);
-    if (!m || (m[2] && !(+m[2] > 0))) throw tok;
-    return (KO[m[1]] || m[1]) + m[2];
+    const m = tok.match(/^(높은도|도|레|미|파|솔|라|시|[A-G]|c)([#b♯♭]?)(\d*\.?\d*)$/);
+    if (!m || (m[3] && !(+m[3] > 0))) throw tok;
+    const L = KO[m[1]] || m[1], acc = {'♯': '#', '♭': 'b'}[m[2]] || m[2];
+    if (keyOf(L, acc) < 0) throw tok; // 건반에 없는 음 (예: 미♯)
+    return L + acc + m[3];
   });
   if (!out.length) throw '';
   return out.join(' ');
@@ -330,7 +350,7 @@ $('mkBack').onclick = () => { const t = $('mkNotes'); t.value = t.value.trim().s
 $('mkTry').onclick = () => {
   const n = mkRead(); if (!n) return; $('mkMsg').textContent = '';
   const a = audio(), s = a.currentTime + .2;
-  parse(n).forEach(x => { piano(FREQ[x.k], s + x.beat * .6); });
+  parse(n).forEach(x => { piano(freqOf(x.k), s + x.beat * .6); });
 };
 $('mkSave').onclick = () => {
   const name = $('mkName').value.trim(), n = mkRead(); if (!n) return;
@@ -360,8 +380,9 @@ $('inst').onchange = () => { $('piano').hidden = isDrum(); $('hit').hidden = !is
 addEventListener('keydown', e => {
   if (e.repeat || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return; // 글자 입력 중엔 건반 아님
   if (isDrum() && e.code === 'Space') { e.preventDefault(); press($('hit'), -1); }
-  const i = KB.indexOf(e.key.toLowerCase());
+  const i = KB.indexOf(e.key.toLowerCase()), j = KB_B.indexOf(e.key.toLowerCase());
   if (!isDrum() && i >= 0) press(whiteEls[i], i);
+  if (!isDrum() && j >= 0) press(blackEls[j], 8 + j);
 });
 
 // ---------- 게임 ----------
@@ -387,7 +408,7 @@ function begin(isAuto){
   // 시범 연주: 모든 음을 정확한 시간에 미리 예약
   if (demoBus) demoBus.disconnect();
   demoBus = a.createGain(); demoBus.connect(master);
-  if (auto) notes.forEach(n => isDrum() ? drum(t0 + n.beat * BEAT, n.len < 2, demoBus) : piano(FREQ[n.k], t0 + n.beat * BEAT, demoBus));
+  if (auto) notes.forEach(n => isDrum() ? drum(t0 + n.beat * BEAT, n.len < 2, demoBus) : piano(freqOf(n.k), t0 + n.beat * BEAT, demoBus));
   if (auto) react('👀', '잘 보고 들어요~');
   cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); // 그리기 반복은 항상 하나만
 }
@@ -403,8 +424,8 @@ function press(el, key){
   if (paused) return;
   flash(el);
   try { navigator.vibrate && navigator.vibrate(15); } catch {}
-  if (key >= 0) piano(FREQ[key]);
-  if (!$('maker').hidden && key >= 0) { const t = $('mkNotes'); t.value = (t.value.trim() + ' ' + (key === 7 ? '높은도' : NAMES[key])).trim(); return; }
+  if (key >= 0) piano(freqOf(key));
+  if (!$('maker').hidden && key >= 0) { const t = $('mkNotes'); t.value = (t.value.trim() + ' ' + (key === 7 ? '높은도' : key < 8 ? NAMES[key] : BNAMES.ko[key - 8])).trim(); return; }
   if (!playing || auto) { if (key < 0) drum(0, true); return; }
   const now = clock() - LAT(), J = JUDGE();
   let best = null, bd = 1e9;
@@ -459,7 +480,7 @@ function draw(){
   $('progress').firstChild.style.width = Math.max(0, Math.min(100, (now - t0) / (total * BEAT) * 100)) + '%';
   // 판정선
   cx.fillStyle = '#ff8c42'; cx.fillRect(0, HY, W, 5);
-  const laneX = k => isDrum() || k < 0 ? W / 2 - lw / 2 : k * lw;
+  const laneX = k => isDrum() || k < 0 ? W / 2 - lw / 2 : k < 8 ? k * lw : (BLACK[k - 8][0] + .5) * lw;
   // 누른 줄 반짝임
   const pt = performance.now(), la = 1 - (pt - laneHit.at) / 200;
   if (la > 0) {
@@ -487,29 +508,29 @@ function draw(){
     const t = t0 + n.beat * BEAT;
     if (auto && !n.judged && now >= t) { // 시범: 저절로 누름
       n.judged = true; n.res = 'a';
-      const el = isDrum() ? $('hit') : whiteEls[n.k]; flash(el); laneHit = {k: isDrum() ? -1 : n.k, at: performance.now()};
+      const el = isDrum() ? $('hit') : keyEls[n.k]; flash(el); laneHit = {k: isDrum() ? -1 : n.k, at: performance.now()};
     }
     if (!auto && !n.judged && now - t > .3 * JUDGE() + LAT()) miss(n);
     if (!n.judged) left++;
     const y = HY - (t - now) / BEAT * PX, h = n.len * PX - 8;
     if (y < 0 || y - h > H) continue;
-    const x = isDrum() ? W / 2 - lw / 2 : n.k * lw;
-    cx.fillStyle = {p:'#8ce99a', g:'#a5d8ff', m:'#ddd'}[n.res] || (isDrum() ? '#ff8c42' : COLORS[n.k]);
+    const x = laneX(n.k);
+    cx.fillStyle = {p:'#8ce99a', g:'#a5d8ff', m:'#ddd'}[n.res] || (isDrum() ? '#ff8c42' : colorOf(n.k));
     if (n.res === 'a') cx.globalAlpha = .5;
     cx.beginPath(); cx.roundRect(x + 6, y - h, lw - 12, h, 10); cx.fill(); cx.globalAlpha = 1;
     if (!n.res && !isDrum()) {
       cx.fillStyle = '#fff'; cx.font = `bold ${Math.min(22, lw * .45)}px sans-serif`; cx.textAlign = 'center';
-      cx.fillText(lab()[n.k], x + lw / 2, y - 10);
+      cx.fillText(labelOf(n.k), x + lw / 2, y - 10);
     }
   }
   // 다음에 칠 건반을 1박 전부터 빛내기
   const nx = notes.find(n => !n.judged), hk = nx && !isDrum() && t0 + nx.beat * BEAT - now < BEAT ? nx.k : -1;
-  whiteEls.forEach((el, i) => el.classList.toggle('hint', i === hk));
+  keyEls.forEach((el, i) => el.classList.toggle('hint', i === hk));
   if (!left) { clearHints(); return finish(); }
   raf = requestAnimationFrame(draw);
 }
 
-function clearHints(){ whiteEls.forEach(el => el.classList.remove('hint')); }
+function clearHints(){ keyEls.forEach(el => el.classList.remove('hint')); }
 function finish(){
   playing = false; $('pause').disabled = true;
   if (auto) { auto = false; return react('😺', '이제 직접 쳐 볼까요? ▶ 시작!'); }

@@ -6,5 +6,8 @@
     "@capacitor/android": "^8.6.0",
     "@capacitor/cli": "^8.6.0",
     "@capacitor/core": "^8.6.0"
+  },
+  "scripts": {
+    "test": "node tests/songs.test.js"
   }
 }
