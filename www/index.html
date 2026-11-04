@@ -5,20 +5,29 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>동요 리듬 놀이</title>
 <style>
-  body{margin:0;font-family:sans-serif;background:#fff7e6;color:#333;text-align:center;user-select:none;-webkit-user-select:none}
-  h1{margin:10px 0 4px;font-size:22px}
-  .row{margin:6px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
-  select,button{font-size:17px;padding:7px 12px;border-radius:12px;border:2px solid #f0a040;background:#fff}
+  [hidden]{display:none!important}
+  body{margin:0;font-family:sans-serif;background:#fff7e6;color:#333;text-align:center;user-select:none;-webkit-user-select:none;
+       height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+  h1{margin:8px 0 2px;font-size:22px}
+  .row{margin:4px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+  select,button{font-size:16px;padding:6px 10px;border-radius:12px;border:2px solid #f0a040;background:#fff}
   #top{display:flex;align-items:center;justify-content:center;gap:12px}
-  #face{font-size:56px}
-  #msg{font-size:20px;font-weight:bold}
-  #stage{max-width:720px;margin:0 auto;padding:0 8px}
-  canvas{display:block;width:100%;height:260px;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 2px 8px #0002}
-  #piano{position:relative;display:flex;height:170px;touch-action:none}
+  #face{font-size:48px;line-height:1.1}
+  #msg{font-size:18px;font-weight:bold}
+  #stage{flex:1;min-height:0;width:100%;max-width:900px;margin:0 auto;padding:0 8px 8px;box-sizing:border-box;display:flex;flex-direction:column}
+  canvas{display:block;flex:1 1 0;min-height:0;width:100%;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 2px 8px #0002}
+  #piano{position:relative;display:flex;height:min(170px,35vh);flex-shrink:0;touch-action:none}
+  .hint{color:#888;font-size:14px;margin:4px}
+  /* 가로 화면(폰): 제목·안내 숨기고 위쪽을 작게 */
+  @media (max-height:500px){
+    h1,.hint{display:none}
+    #face{font-size:30px} #msg{font-size:15px}
+    select,button{font-size:14px;padding:4px 8px}
+  }
   .w{flex:1;background:#fff;border:1px solid #999;border-radius:0 0 10px 10px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:10px;font-weight:bold;font-size:16px;box-sizing:border-box}
   .b{position:absolute;top:0;width:7%;height:60%;background:#222;border-radius:0 0 6px 6px;z-index:2}
   .w.on{background:#ffd27a}.b.on{background:#666}
-  #hit{width:170px;height:170px;border-radius:50%;font-size:28px;font-weight:bold;background:#ff8c42;color:#fff;border:none;margin:10px auto;display:block;touch-action:none}
+  #hit{width:min(170px,32vh);height:min(170px,32vh);flex-shrink:0;border-radius:50%;font-size:28px;font-weight:bold;background:#ff8c42;color:#fff;border:none;margin:8px auto;display:block;touch-action:none}
   #hit.on{transform:scale(.93);background:#ff6b1a}
 </style>
 </head>
@@ -27,6 +36,7 @@
 <div class="row">
   <select id="song"></select>
   <select id="inst"><option value="piano">🎹 피아노</option><option value="drum">🥁 드럼</option></select>
+  <button id="metro">🥁 박자 켬</button>
   <button id="listen">👂 듣기</button>
   <button id="start">▶ 시작</button>
   <button id="pause" disabled>⏸ 멈춤</button>
@@ -38,7 +48,7 @@
   <div id="piano"></div>
   <button id="hit" hidden>톡!</button>
 </div>
-<p style="color:#888;font-size:14px">키보드: A S D F G H J K = 도~높은도 (드럼은 스페이스바)</p>
+<p class="hint">키보드: A S D F G H J K = 도~높은도 (드럼은 스페이스바)</p>
 
 <script>
 // 곡 데이터: 음이름(c=높은 도) + 박자수(생략시 1)
@@ -115,6 +125,28 @@ function drum(when, high){
   s.buffer = buf; sg.gain.value = high ? .3 : .1;
   s.connect(sg).connect(a.destination); s.start(t);
 }
+// 박자 드럼: 마디 첫 박은 '쿵'(킥), 나머지는 '칙'(하이햇). 모든 소리는 metroGain을 거쳐 켬/끔 가능
+let metroOn = true, metroGain;
+function beatDrum(when, strong){
+  const a = ac, t = when;
+  if (strong) {
+    const o = a.createOscillator(), g = a.createGain();
+    o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(40, t + .12);
+    g.gain.setValueAtTime(.5, t); g.gain.exponentialRampToValueAtTime(.001, t + .2);
+    o.connect(g).connect(metroGain); o.start(t); o.stop(t + .2);
+  }
+  const buf = a.createBuffer(1, a.sampleRate * .05, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * (1 - i/d.length);
+  const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  s.buffer = buf; f.type = 'highpass'; f.frequency.value = 7000; g.gain.value = strong ? .12 : .08;
+  s.connect(f).connect(g).connect(metroGain); s.start(t);
+}
+$('metro').onclick = () => {
+  metroOn = !metroOn;
+  $('metro').textContent = metroOn ? '🥁 박자 켬' : '🔇 박자 끔';
+  if (metroGain) metroGain.gain.value = metroOn ? 1 : 0;
+};
+
 function tick(when){
   const a = audio(), o = a.createOscillator(), g = a.createGain();
   o.frequency.value = 1000; g.gain.setValueAtTime(.15, when); g.gain.exponentialRampToValueAtTime(.001, when+.05);
@@ -138,7 +170,7 @@ $('hit').onpointerdown = e => { e.preventDefault(); press($('hit'), -1); };
 
 function flash(el){ el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 120); }
 
-$('inst').onchange = () => { $('piano').hidden = isDrum(); $('hit').hidden = !isDrum(); };
+$('inst').onchange = () => { $('piano').hidden = isDrum(); $('hit').hidden = !isDrum(); fit(); };
 
 addEventListener('keydown', e => {
   if (e.repeat) return;
@@ -160,6 +192,10 @@ $('start').onclick = () => {
   notes = parse(SONGS[$('song').value]);
   t0 = a.currentTime + LEAD * BEAT;
   for (let i = 0; i < LEAD; i++) tick(a.currentTime + i * BEAT);
+  // 곡 전체 박자 드럼 미리 예약 (멈춤 시 오디오 시계와 함께 멈춤)
+  metroGain = a.createGain(); metroGain.gain.value = metroOn ? 1 : 0; metroGain.connect(a.destination);
+  const last = notes[notes.length - 1], total = last.beat + last.len;
+  for (let i = 0; i < total; i++) beatDrum(t0 + i * BEAT, i % 4 === 0);
   score = 0; playing = true;
   $('score').textContent = 0; react('😺', '준비~ 하나, 둘, 셋, 넷!');
   requestAnimationFrame(draw);
@@ -188,13 +224,22 @@ function press(el, key){
   $('score').textContent = score;
 }
 
-const cv = $('cv'), cx = cv.getContext('2d'), HY = 245, PX = 80; // 판정선 y, 1박당 픽셀
+const cv = $('cv'), cx = cv.getContext('2d');
+// 캔버스 내부 해상도를 실제 화면 크기에 맞춤 → 글자/블록이 늘어나 보이지 않음
+function fit(){
+  const d = devicePixelRatio || 1;
+  cv.width = cv.clientWidth * d; cv.height = cv.clientHeight * d;
+  cx.setTransform(d, 0, 0, d, 0, 0);
+}
+addEventListener('resize', fit); fit();
+
 function draw(){
   if (!playing) return;
-  const now = ac.currentTime, W = cv.width, lw = W / 8;
-  cx.clearRect(0, 0, W, cv.height);
+  const now = ac.currentTime, W = cv.clientWidth, H = cv.clientHeight, lw = W / 8;
+  const HY = H - 12, PX = Math.max(HY / 3.2, 40); // 판정선 y, 1박당 픽셀 (화면에 약 3박이 보이게)
+  cx.clearRect(0, 0, W, H);
   // 세로 레인
-  for (let i = 1; i < 8; i++) { cx.fillStyle = '#f2f2f2'; cx.fillRect(i * lw, 0, 1, cv.height); }
+  for (let i = 1; i < 8; i++) { cx.fillStyle = '#f2f2f2'; cx.fillRect(i * lw, 0, 1, H); }
   // 판정선
   cx.fillStyle = '#ff8c42'; cx.fillRect(0, HY, W, 5);
   let left = 0;
@@ -203,12 +248,12 @@ function draw(){
     if (!n.judged && now - t > .3) { n.judged = true; n.res = 'm'; react('😿', '놓쳤어요~'); }
     if (!n.judged) left++;
     const y = HY - (t - now) / BEAT * PX, h = n.len * PX - 8;
-    if (y < 0 || y - h > cv.height) continue;
+    if (y < 0 || y - h > H) continue;
     const x = isDrum() ? W / 2 - lw / 2 : n.k * lw;
     cx.fillStyle = {p:'#8ce99a', g:'#a5d8ff', m:'#ddd'}[n.res] || (isDrum() ? '#ff8c42' : COLORS[n.k]);
     cx.beginPath(); cx.roundRect(x + 6, y - h, lw - 12, h, 10); cx.fill();
     if (!n.res && !isDrum()) {
-      cx.fillStyle = '#fff'; cx.font = 'bold 22px sans-serif'; cx.textAlign = 'center';
+      cx.fillStyle = '#fff'; cx.font = `bold ${Math.min(22, lw * .45)}px sans-serif`; cx.textAlign = 'center';
       cx.fillText(NAMES[n.k], x + lw / 2, y - 10);
     }
   }
