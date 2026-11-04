@@ -40,6 +40,8 @@
   #rStars{font-size:44px;animation:pop .5s}
   @keyframes pop{0%{transform:scale(0)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
   #face.bounce{animation:pop .3s}
+  .conf{position:fixed;top:-40px;font-size:28px;pointer-events:none;z-index:20;animation:fall 2s linear forwards}
+  @keyframes fall{to{transform:translateY(calc(100vh + 60px)) rotate(360deg)}}
   #progress{height:5px;background:#ffe0b3;border-radius:3px;overflow:hidden;flex-shrink:0;margin-bottom:2px}
   #progress>div{height:100%;width:0;background:#ff8c42}
 </style>
@@ -68,7 +70,15 @@
       <span>타이밍 보정</span><select id="lat"><option value="0" selected>0ms</option><option value="0.05">+50ms</option><option value="0.1">+100ms</option><option value="0.15">+150ms</option><option value="0.25">+250ms (블루투스)</option></select>
       <span>박자 소리</span><button id="metro">🥁 박자 켬</button>
     </div>
-    <button id="setClose">✔ 닫기</button>
+    <div class="row"><button id="mkOpen">✏️ 내 노래 만들기</button><button id="setClose">✔ 닫기</button></div>
+  </div>
+  <div id="maker" class="panel" hidden>
+    <b>✏️ 내 노래 만들기</b>
+    <input id="mkName" placeholder="노래 이름" maxlength="20" style="font-size:16px;padding:4px 8px;border-radius:8px;border:2px solid #f0a040">
+    <textarea id="mkNotes" rows="3" style="width:90%;max-width:560px;font-size:16px;border-radius:8px;border:2px solid #f0a040" placeholder="예) 도 도 솔 솔 라 라 솔2 파 파 미 미 레 레 도2"></textarea>
+    <small>계이름을 띄어 쓰고, 길게 칠 음은 뒤에 박자 수(2, 3, .5)를 붙여요. 높은 도는 '높은도'</small>
+    <div id="mkMsg" style="color:#e03131;font-weight:bold"></div>
+    <div class="row"><button id="mkTry">👂 들어보기</button><button id="mkSave">💾 저장</button><button id="mkDel">🗑 삭제</button><button id="mkClose">닫기</button></div>
   </div>
   <div id="result" class="panel" hidden>
     <div id="rStars"></div>
@@ -110,12 +120,21 @@ const BLACK = [[0,277.18],[1,311.13],[3,369.99],[4,415.3],[5,466.16]]; // [왼�
 const KB = 'asdfghjk';
 
 const $ = id => document.getElementById(id);
-const LV = ["", "🟢 쉬움", "🟡 보통", "🔴 어려움"];
-for (let lv = 1; lv <= 3; lv++) {
-  const g = document.createElement('optgroup'); g.label = LV[lv];
-  for (const [n, s] of Object.entries(SONGS)) if (s.lv === lv) g.append(new Option(n, n));
-  $('song').append(g);
+const LV = ["", "🟢 쉬움", "🟡 보통", "🔴 어려움", "✏️ 내 노래"];
+// 내 노래(부모님이 직접 만든 곡)는 기기에 저장, lv 4로 목록에 추가
+const loadMine = () => { try { return JSON.parse(localStorage.getItem('mysongs') || '{}'); } catch { return {}; } };
+function buildSongList(sel){
+  for (const k in SONGS) if (SONGS[k].lv === 4) delete SONGS[k];
+  for (const [n, s] of Object.entries(loadMine())) if (!SONGS[n]) SONGS[n] = {lv: 4, bpm: 90, n: s};
+  const keep = sel || $('song').value; $('song').innerHTML = '';
+  for (let lv = 1; lv <= 4; lv++) {
+    const g = document.createElement('optgroup'); g.label = LV[lv];
+    for (const [n, s] of Object.entries(SONGS)) if (s.lv === lv) g.append(new Option(n, n));
+    if (g.children.length) $('song').append(g);
+  }
+  if (SONGS[keep]) $('song').value = keep;
 }
+buildSongList();
 const starsOf = p => p >= 85 ? '⭐⭐⭐' : p >= 60 ? '⭐⭐' : p > 0 ? '⭐' : '';
 // 곡 목록에 현재 모드의 최고 별 표시
 function songStars(){
@@ -161,7 +180,7 @@ $('reset').onclick = () => {
   $('score').textContent = 0;
   $('pause').textContent = '⏸ 멈춤'; $('pause').disabled = true; $('listen').disabled = false;
   cx.clearRect(0, 0, cv.width, cv.height);
-  $('settings').hidden = $('result').hidden = true; $('progress').firstChild.style.width = 0; clearHints();
+  $('settings').hidden = $('result').hidden = $('maker').hidden = true; $('progress').firstChild.style.width = 0; clearHints();
   react('😺', '시작을 누르고 내려오는 건반을 쳐요!');
 };
 // 앱/탭이 화면에서 사라지면 자동 멈춤
@@ -273,6 +292,49 @@ $('label').addEventListener('change', updateLabels);
 // 설정 창 (게임 중 열면 자동 멈춤)
 $('setBtn').onclick = () => { if (playing && !paused) $('pause').onclick(); $('result').hidden = true; $('settings').hidden = false; };
 $('setClose').onclick = () => $('settings').hidden = true;
+// ---------- 내 노래 만들기 ----------
+const KO = {'도':'C','레':'D','미':'E','파':'F','솔':'G','라':'A','시':'B','높은도':'c'};
+const toKo = s => s.split(' ').map(t => (Object.keys(KO).find(k => KO[k] === t[0]) || t[0]) + t.slice(1)).join(' ');
+function toNotes(text){ // "도 레2 높은도.5" → "C D2 c.5" (잘못된 글자는 throw)
+  const out = text.trim().split(/[\s,]+/).filter(Boolean).map(tok => {
+    const m = tok.match(/^(높은도|도|레|미|파|솔|라|시|[A-G]|c)(\d*\.?\d*)$/);
+    if (!m || (m[2] && !(+m[2] > 0))) throw tok;
+    return (KO[m[1]] || m[1]) + m[2];
+  });
+  if (!out.length) throw '';
+  return out.join(' ');
+}
+function mkRead(){
+  try { return toNotes($('mkNotes').value); }
+  catch (bad) { $('mkMsg').textContent = bad ? `"${bad}" 를 알 수 없어요` : '계이름을 적어 주세요'; return null; }
+}
+$('mkOpen').onclick = () => {
+  const s = song(); $('settings').hidden = true; $('maker').hidden = false; $('mkMsg').textContent = '';
+  $('mkName').value = s.lv === 4 ? $('song').value : ''; $('mkNotes').value = s.lv === 4 ? toKo(s.n) : '';
+};
+$('mkClose').onclick = () => $('maker').hidden = true;
+$('mkTry').onclick = () => {
+  const n = mkRead(); if (!n) return; $('mkMsg').textContent = '';
+  const a = audio(), s = a.currentTime + .2;
+  parse(n).forEach(x => { piano(FREQ[x.k], s + x.beat * .6); });
+};
+$('mkSave').onclick = () => {
+  const name = $('mkName').value.trim(), n = mkRead(); if (!n) return;
+  if (!name) return $('mkMsg').textContent = '노래 이름을 적어 주세요';
+  if (SONGS[name] && SONGS[name].lv !== 4) return $('mkMsg').textContent = '이미 있는 곡 이름이에요';
+  const mine = loadMine(); mine[name] = n;
+  try { localStorage.setItem('mysongs', JSON.stringify(mine)); } catch {}
+  buildSongList(name); showBest(); saveSettings(); $('maker').hidden = true;
+  react('😺', `"${name}" 저장! 시작을 눌러 보세요`);
+};
+$('mkDel').onclick = () => {
+  const name = $('mkName').value.trim(), mine = loadMine();
+  if (!mine[name]) return $('mkMsg').textContent = '지울 내 노래 이름을 적어 주세요';
+  if (!confirm(`"${name}" 을(를) 지울까요?`)) return;
+  delete mine[name]; try { localStorage.setItem('mysongs', JSON.stringify(mine)); } catch {}
+  buildSongList(); showBest(); saveSettings(); $('maker').hidden = true;
+};
+
 // 결과 창 버튼
 $('again').onclick = () => $('start').onclick();
 $('next').onclick = () => { const s = $('song'); s.selectedIndex = (s.selectedIndex + 1) % s.options.length; showBest(); saveSettings(); $('start').onclick(); };
@@ -297,7 +359,7 @@ $('listen').onclick = () => {
 
 $('start').onclick = () => {
   paused = false; $('pause').textContent = '⏸ 멈춤'; $('pause').disabled = false; $('listen').disabled = false;
-  $('settings').hidden = $('result').hidden = true;
+  $('settings').hidden = $('result').hidden = $('maker').hidden = true;
   const a = audio();
   setTempo();
   notes = parse(song().n);
@@ -395,6 +457,11 @@ function draw(){
     cx.fillText(f.txt, laneX(f.k) + lw / 2, HY - 30 - p * 40);
   }
   cx.globalAlpha = 1;
+  // 시작 전 4-3-2-1
+  if (now < t0) {
+    cx.fillStyle = '#ff8c42'; cx.font = `bold ${Math.min(72, H * .4)}px sans-serif`; cx.textBaseline = 'middle';
+    cx.fillText(Math.ceil((t0 - now) / BEAT - 1e-6), W / 2, HY / 2); cx.textBaseline = 'alphabetic';
+  }
   let left = 0;
   for (const n of notes) {
     const t = t0 + n.beat * BEAT;
@@ -433,7 +500,17 @@ function finish(){
   $('rCounts').textContent = learn() ? `${notes.length}개 음을 모두 쳤어요! 👏`
     : `😻 최고 ${cnt('p')}  ·  😸 좋아 ${cnt('g')}  ·  😿 놓침 ${cnt('m')}`;
   $('result').hidden = false;
-  if (pct >= 85) fanfare();
+  if (pct >= 85) { fanfare(); confetti(); }
+}
+// 축하 이모지 비
+function confetti(){
+  for (let i = 0; i < 24; i++) {
+    const s = document.createElement('span'); s.className = 'conf';
+    s.textContent = ['🎉', '⭐', '🎈', '✨', '🎵'][i % 5];
+    s.style.left = Math.random() * 100 + 'vw'; s.style.animationDelay = Math.random() * .8 + 's';
+    s.style.animationDuration = 1.6 + Math.random() + 's';
+    document.body.append(s); setTimeout(() => s.remove(), 3500);
+  }
 }
 // 잘했을 때 짧은 축하 소리 (도-미-솔-도)
 function fanfare(){
