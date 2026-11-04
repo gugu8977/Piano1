@@ -57,7 +57,7 @@
 <div class="row">
   <select id="song"></select>
   <button id="setBtn">⚙ 설정</button>
-  <button id="listen">👂 듣기</button>
+  <button id="listen">👀 보고 듣기</button>
   <button id="start">▶ 시작</button>
   <button id="pause" disabled>⏸ 멈춤</button>
   <button id="reset">⏹ 처음</button>
@@ -157,7 +157,7 @@ let offset = 0;
 const learn = () => $('mode').value === 'learn';
 function clock(){
   let now = ac.currentTime - offset;
-  const n = learn() && notes.find(n => !n.judged);
+  const n = learn() && !auto && notes.find(n => !n.judged);
   if (n) { const t = t0 + n.beat * BEAT; if (now > t) { offset += now - t; now = t; } }
   return now;
 }
@@ -168,7 +168,14 @@ const getBest = () => { try { return +localStorage.getItem(bestKey()) || 0; } ca
 const showBest = () => { $('best').textContent = getBest(); songStars(); };
 $('song').onchange = $('mode').onchange = showBest; showBest();
 const isDrum = () => $('inst').value === 'drum';
-function audio(){ ac = ac || new (window.AudioContext||window.webkitAudioContext)(); if (!paused) ac.resume(); return ac; }
+function audio(){
+  if (!ac) {
+    ac = new (window.AudioContext||window.webkitAudioContext)();
+    master = ac.createDynamicsCompressor(); master.connect(ac.destination); // 소리가 겹쳐도 찢어지지 않게
+  }
+  if (!paused) ac.resume(); return ac;
+}
+let master, demoBus, auto = false; // demoBus: 시범 연주 소리 묶음(끊을 때 한 번에 끊음)
 
 // 멈춤: 오디오 시계(currentTime)를 정지시키면 음표·박자도 그대로 멈춤
 $('pause').onclick = () => {
@@ -181,7 +188,7 @@ $('pause').onclick = () => {
 // 완전 정지 + 리셋: 오디오를 닫아 예약된 소리(준비 박자, 듣기)까지 모두 끊음
 $('reset').onclick = () => {
   if (ac) { ac.close(); ac = null; }
-  playing = paused = false; score = 0; combo = 0; notes = []; fx = [];
+  playing = paused = auto = false; score = 0; combo = 0; notes = []; fx = [];
   $('score').textContent = 0;
   $('pause').textContent = '⏸ 멈춤'; $('pause').disabled = true; $('listen').disabled = false;
   cx.clearRect(0, 0, cv.width, cv.height);
@@ -207,28 +214,28 @@ const TONES = {
   xylo:  {p: [[1, 'sine', .35], [4, 'sine', .07], [10, 'sine', .02]], d: .45},
   box:   {p: [[2, 'sine', .2], [6, 'sine', .05], [4.01, 'sine', .04]], d: 1.4}
 };
-function piano(f, when){
+function piano(f, when, dest){
   const a = audio(), t = when || a.currentTime, tone = TONES[$('inst').value] || TONES.piano;
   tone.p.forEach(([m, type, v]) => {
     const o = a.createOscillator(), g = a.createGain();
     o.type = type; o.frequency.value = f * m;
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .005); // 딸깍 소리 방지
     g.gain.exponentialRampToValueAtTime(.001, t + tone.d);
-    o.connect(g).connect(a.destination); o.start(t); o.stop(t + tone.d);
+    o.connect(g).connect(dest || master); o.start(t); o.stop(t + tone.d);
   });
 }
-function drum(when, high){
-  const a = audio(), t = when || a.currentTime;
+function drum(when, high, dest){
+  const a = audio(), t = when || a.currentTime; dest = dest || master;
   const o = a.createOscillator(), g = a.createGain();
   o.frequency.setValueAtTime(high ? 300 : 150, t);
   o.frequency.exponentialRampToValueAtTime(50, t + .15);
   g.gain.setValueAtTime(.8, t); g.gain.exponentialRampToValueAtTime(.001, t + .25);
-  o.connect(g).connect(a.destination); o.start(t); o.stop(t + .25);
+  o.connect(g).connect(dest); o.start(t); o.stop(t + .25);
   const buf = a.createBuffer(1, a.sampleRate * .1, a.sampleRate), d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * (1 - i/d.length);
   const s = a.createBufferSource(), sg = a.createGain();
   s.buffer = buf; sg.gain.value = high ? .3 : .1;
-  s.connect(sg).connect(a.destination); s.start(t);
+  s.connect(sg).connect(dest); s.start(t);
 }
 // 박자 드럼: 마디 첫 박은 '쿵'(킥), 나머지는 '칙'(하이햇). 모든 소리는 metroGain을 거쳐 켬/끔 가능
 let metroOn = true, metroGain;
@@ -255,7 +262,7 @@ $('metro').onclick = () => {
 function tick(when){
   const a = audio(), o = a.createOscillator(), g = a.createGain();
   o.frequency.value = 1000; g.gain.setValueAtTime(.15, when); g.gain.exponentialRampToValueAtTime(.001, when+.05);
-  o.connect(g).connect(a.destination); o.start(when); o.stop(when+.05);
+  o.connect(g).connect(master); o.start(when); o.stop(when+.05);
 }
 
 // ---------- 건반 만들기 ----------
@@ -358,14 +365,11 @@ addEventListener('keydown', e => {
 });
 
 // ---------- 게임 ----------
-$('listen').onclick = () => {
-  const a = audio(), s = a.currentTime + .2;
-  setTempo();
-  parse(song().n).forEach(n =>
-    isDrum() ? drum(s + n.beat * BEAT, n.len < 2) : piano(FREQ[n.k], s + n.beat * BEAT));
-};
-
-$('start').onclick = () => {
+$('listen').onclick = () => begin(true);
+$('start').onclick = () => begin(false);
+// 게임 시작. isAuto=true면 시범 연주(정해진 시간에 저절로 치고, 점수·기록 없음)
+function begin(isAuto){
+  auto = isAuto;
   paused = false; $('pause').textContent = '⏸ 멈춤'; $('pause').disabled = false; $('listen').disabled = false;
   $('settings').hidden = $('result').hidden = $('maker').hidden = true;
   const a = audio();
@@ -375,13 +379,18 @@ $('start').onclick = () => {
   for (let i = 0; i < LEAD; i++) tick(a.currentTime + i * BEAT);
   // 곡 전체 박자 드럼 미리 예약 (멈춤 시 오디오 시계와 함께 멈춤). 이전 판의 박자는 연결을 끊어 없앰
   if (metroGain) metroGain.disconnect();
-  metroGain = a.createGain(); metroGain.gain.value = metroOn ? 1 : 0; metroGain.connect(a.destination);
+  metroGain = a.createGain(); metroGain.gain.value = metroOn ? 1 : 0; metroGain.connect(master);
   const last = notes[notes.length - 1], total = last.beat + last.len;
   if (!learn()) for (let i = 0; i < total; i++) beatDrum(t0 + i * BEAT, i % meter() === 0);
   score = 0; combo = 0; fx = []; offset = 0; playing = true;
   $('score').textContent = 0; react('😺', '준비~ 하나, 둘, 셋, 넷!');
+  // 시범 연주: 모든 음을 정확한 시간에 미리 예약
+  if (demoBus) demoBus.disconnect();
+  demoBus = a.createGain(); demoBus.connect(master);
+  if (auto) notes.forEach(n => isDrum() ? drum(t0 + n.beat * BEAT, n.len < 2, demoBus) : piano(FREQ[n.k], t0 + n.beat * BEAT, demoBus));
+  if (auto) react('👀', '잘 보고 들어요~');
   cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); // 그리기 반복은 항상 하나만
-};
+}
 let raf = 0;
 
 function react(face, msg){
@@ -396,7 +405,7 @@ function press(el, key){
   try { navigator.vibrate && navigator.vibrate(15); } catch {}
   if (key >= 0) piano(FREQ[key]);
   if (!$('maker').hidden && key >= 0) { const t = $('mkNotes'); t.value = (t.value.trim() + ' ' + (key === 7 ? '높은도' : NAMES[key])).trim(); return; }
-  if (!playing) { if (key < 0) drum(0, true); return; }
+  if (!playing || auto) { if (key < 0) drum(0, true); return; }
   const now = clock() - LAT(), J = JUDGE();
   let best = null, bd = 1e9;
   for (const n of notes) if (!n.judged && (key < 0 || n.k === key)) {
@@ -476,13 +485,18 @@ function draw(){
   let left = 0;
   for (const n of notes) {
     const t = t0 + n.beat * BEAT;
-    if (!n.judged && now - t > .3 * JUDGE() + LAT()) miss(n);
+    if (auto && !n.judged && now >= t) { // 시범: 저절로 누름
+      n.judged = true; n.res = 'a';
+      const el = isDrum() ? $('hit') : whiteEls[n.k]; flash(el); laneHit = {k: isDrum() ? -1 : n.k, at: performance.now()};
+    }
+    if (!auto && !n.judged && now - t > .3 * JUDGE() + LAT()) miss(n);
     if (!n.judged) left++;
     const y = HY - (t - now) / BEAT * PX, h = n.len * PX - 8;
     if (y < 0 || y - h > H) continue;
     const x = isDrum() ? W / 2 - lw / 2 : n.k * lw;
     cx.fillStyle = {p:'#8ce99a', g:'#a5d8ff', m:'#ddd'}[n.res] || (isDrum() ? '#ff8c42' : COLORS[n.k]);
-    cx.beginPath(); cx.roundRect(x + 6, y - h, lw - 12, h, 10); cx.fill();
+    if (n.res === 'a') cx.globalAlpha = .5;
+    cx.beginPath(); cx.roundRect(x + 6, y - h, lw - 12, h, 10); cx.fill(); cx.globalAlpha = 1;
     if (!n.res && !isDrum()) {
       cx.fillStyle = '#fff'; cx.font = `bold ${Math.min(22, lw * .45)}px sans-serif`; cx.textAlign = 'center';
       cx.fillText(lab()[n.k], x + lw / 2, y - 10);
@@ -498,6 +512,7 @@ function draw(){
 function clearHints(){ whiteEls.forEach(el => el.classList.remove('hint')); }
 function finish(){
   playing = false; $('pause').disabled = true;
+  if (auto) { auto = false; return react('😺', '이제 직접 쳐 볼까요? ▶ 시작!'); }
   const pct = Math.round(score / (notes.length * 100) * 100);
   const stars = pct >= 85 ? '⭐⭐⭐' : pct >= 60 ? '⭐⭐' : '⭐';
   const rec = pct > getBest();
