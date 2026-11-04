@@ -1,4 +1,4 @@
-# main에 푸시하면 www/ 폴더를 GitHub Pages로 배포
+# main에 푸시하면 www/ 폴더를 GitHub Pages로 배포 (주소: https://gugu8977.github.io/Piano1/)
 name: Deploy to GitHub Pages
 
 on:
