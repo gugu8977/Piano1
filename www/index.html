@@ -60,7 +60,7 @@
     <div class="grid">
       <span>빠르기</span><select id="speed"><option value=".75">🐢 느리게</option><option value="1" selected>🚶 보통</option><option value="1.25">🐇 빠르게</option></select>
       <span>놀이 방법</span><select id="mode"><option value="play">🎮 박자 게임</option><option value="learn">🐣 기다려 주기</option></select>
-      <span>악기</span><select id="inst"><option value="piano">🎹 피아노</option><option value="drum">🥁 드럼</option></select>
+      <span>악기</span><select id="inst"><option value="piano">🎹 피아노</option><option value="xylo">🔔 실로폰</option><option value="box">🎶 오르골</option><option value="drum">🥁 드럼</option></select>
       <span>건반 글자</span><select id="label"><option value="ko">도레미</option><option value="en">CDE</option><option value="none">글자 없음</option></select>
       <span>박자 소리</span><button id="metro">🥁 박자 켬</button>
     </div>
@@ -80,14 +80,17 @@
 <script>
 // 곡 데이터 (모두 저작권이 끝난 전래/고전 곡): 음이름(c=높은 도) + 박자수(생략시 1, .5=반박)
 const SONGS = {
-  "반짝반짝 작은별": {bpm:90,  n:"C C G G A A G2 F F E E D D C2 G G F F E E D2 G G F F E E D2 C C G G A A G2 F F E E D D C2"},
-  "나비야":          {bpm:100, n:"G E E2 F D D2 C D E F G G G2 G E E E F D D D C E G G E E E2"},
-  "비행기":          {bpm:100, n:"E D C D E E E2 D D D2 E G G2 E D C D E E E E D D E D C2"},
-  "런던 다리":       {bpm:100, n:"G A G F E F G2 D E F2 E F G2 G A G F E F G2 D2 G E C2"},
-  "환희의 송가":     {bpm:100, n:"E E F G G F E D C C D E E1.5 D.5 D2 E E F G G F E D C C D E D1.5 C.5 C2"},
-  "징글벨":          {bpm:110, n:"E E E2 E E E2 E G C1.5 D.5 E4 F F F1.5 F.5 F E E E.5 E.5 E D D E D2 G2"},
-  "맥도날드 농장":   {bpm:110, n:"G G G D E E D2 B B A A G3 D G G G D E E D2 B B A A G3"},
-  "아침 종소리":     {bpm:100, n:"C D E C C D E C E F G2 E F G2 G.5 A.5 G.5 F.5 E C G.5 A.5 G.5 F.5 E C C G C2 C G C2"}
+  // lv: 1 쉬움, 2 보통, 3 어려움 / m: 한 마디 박자 수(기본 4)
+  "뜨거운 빵":         {lv:1, bpm:90,  n:"E D C2 E D C2 C.5 C.5 C.5 C.5 D.5 D.5 D.5 D.5 E D C2"},
+  "비행기":            {lv:1, bpm:100, n:"E D C D E E E2 D D D2 E G G2 E D C D E E E E D D E D C2"},
+  "반짝반짝 작은별":   {lv:1, bpm:90,  n:"C C G G A A G2 F F E E D D C2 G G F F E E D2 G G F F E E D2 C C G G A A G2 F F E E D D C2"},
+  "나비야":            {lv:1, bpm:100, n:"G E E2 F D D2 C D E F G G G2 G E E E F D D D C E G G E E E2"},
+  "런던 다리":         {lv:2, bpm:100, n:"G A G F E F G2 D E F2 E F G2 G A G F E F G2 D2 G E C2"},
+  "환희의 송가":       {lv:2, bpm:100, n:"E E F G G F E D C C D E E1.5 D.5 D2 E E F G G F E D C C D E D1.5 C.5 C2"},
+  "성자의 행진":       {lv:2, bpm:110, n:"C E F G4 C E F G4 C E F G2 E2 C2 E2 D4 E E D C3 C E G G F3 E F G2 E2 C2 D2 C4"},
+  "맥도날드 농장":     {lv:2, bpm:110, n:"G G G D E E D2 B B A A G3 D G G G D E E D2 B B A A G3"},
+  "징글벨":            {lv:3, bpm:110, n:"E E E2 E E E2 E G C1.5 D.5 E4 F F F1.5 F.5 F E E E.5 E.5 E D D E D2 G2"},
+  "아침 종소리":       {lv:3, bpm:100, n:"C D E C C D E C E F G2 E F G2 G.5 A.5 G.5 F.5 E C G.5 A.5 G.5 F.5 E C C G C2 C G C2"}
 };
 const LEAD = 4;
 let BEAT = .6;
@@ -102,7 +105,20 @@ const BLACK = [[0,277.18],[1,311.13],[3,369.99],[4,415.3],[5,466.16]]; // [왼�
 const KB = 'asdfghjk';
 
 const $ = id => document.getElementById(id);
-Object.keys(SONGS).forEach(n => $('song').add(new Option(n, n)));
+const LV = ["", "🟢 쉬움", "🟡 보통", "🔴 어려움"];
+for (let lv = 1; lv <= 3; lv++) {
+  const g = document.createElement('optgroup'); g.label = LV[lv];
+  for (const [n, s] of Object.entries(SONGS)) if (s.lv === lv) g.append(new Option(n, n));
+  $('song').append(g);
+}
+const starsOf = p => p >= 85 ? '⭐⭐⭐' : p >= 60 ? '⭐⭐' : p > 0 ? '⭐' : '';
+// 곡 목록에 현재 모드의 최고 별 표시
+function songStars(){
+  for (const o of $('song').options) {
+    let p = 0; try { p = +localStorage.getItem(`best:${$('mode').value}:${o.value}`) || 0; } catch {}
+    o.textContent = o.value + (p ? ' ' + starsOf(p) : '');
+  }
+}
 
 let ac, notes = [], t0 = 0, playing = false, paused = false, score = 0, combo = 0;
 let fx = [], laneHit = {k: 0, at: -1e9}; // 판정 글자 효과, 마지막으로 누른 줄
@@ -120,7 +136,7 @@ function clock(){
 // 최고 기록 (곡별, 기기에 저장)
 const bestKey = () => `best:${$('mode').value}:${$('song').value}`;
 const getBest = () => { try { return +localStorage.getItem(bestKey()) || 0; } catch { return 0; } };
-const showBest = () => $('best').textContent = getBest();
+const showBest = () => { $('best').textContent = getBest(); songStars(); };
 $('song').onchange = $('mode').onchange = showBest; showBest();
 const isDrum = () => $('inst').value === 'drum';
 function audio(){ ac = ac || new (window.AudioContext||window.webkitAudioContext)(); if (!paused) ac.resume(); return ac; }
@@ -156,14 +172,20 @@ function parse(str){
 }
 
 // ---------- 소리 ----------
+// 악기 음색: [배음 배수, 파형, 크기] 목록 + 울림 길이(초)
+const TONES = {
+  piano: {p: [[1, 'triangle', .3], [2, 'sine', .08], [3, 'sine', .03]], d: .9},
+  xylo:  {p: [[1, 'sine', .35], [4, 'sine', .07], [10, 'sine', .02]], d: .45},
+  box:   {p: [[2, 'sine', .2], [6, 'sine', .05], [4.01, 'sine', .04]], d: 1.4}
+};
 function piano(f, when){
-  const a = audio(), t = when || a.currentTime;
-  [1, 2].forEach((m, i) => {
+  const a = audio(), t = when || a.currentTime, tone = TONES[$('inst').value] || TONES.piano;
+  tone.p.forEach(([m, type, v]) => {
     const o = a.createOscillator(), g = a.createGain();
-    o.type = i ? 'sine' : 'triangle'; o.frequency.value = f * m;
-    g.gain.setValueAtTime(i ? .08 : .3, t);
-    g.gain.exponentialRampToValueAtTime(.001, t + .6);
-    o.connect(g).connect(a.destination); o.start(t); o.stop(t + .6);
+    o.type = type; o.frequency.value = f * m;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .005); // 딸깍 소리 방지
+    g.gain.exponentialRampToValueAtTime(.001, t + tone.d);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + tone.d);
   });
 }
 function drum(when, high){
