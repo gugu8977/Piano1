@@ -21,8 +21,10 @@
   /* 가로 화면(폰): 제목·안내 숨기고 위쪽을 작게 */
   @media (max-height:500px){
     h1,.hint{display:none}
-    #face{font-size:30px} #msg{font-size:15px}
-    select,button{font-size:14px;padding:4px 8px}
+    .row{gap:4px;margin:3px}
+    #face{font-size:26px} #msg{font-size:15px}
+    #top>div{display:flex;gap:12px;align-items:center}
+    select,button{font-size:13px;padding:3px 6px;border-radius:10px}
   }
   .w{flex:1;background:#fff;border:1px solid #999;border-radius:0 0 10px 10px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:10px;font-weight:bold;font-size:16px;box-sizing:border-box}
   .b{position:absolute;top:0;width:7%;height:60%;background:#222;border-radius:0 0 6px 6px;z-index:2}
@@ -35,14 +37,16 @@
 <h1>🎵 동요 리듬 놀이</h1>
 <div class="row">
   <select id="song"></select>
+  <select id="speed"><option value=".75">🐢 느리게</option><option value="1" selected>🚶 보통</option><option value="1.25">🐇 빠르게</option></select>
+  <select id="mode"><option value="play">🎮 게임</option><option value="learn">🐣 기다리기</option></select>
   <select id="inst"><option value="piano">🎹 피아노</option><option value="drum">🥁 드럼</option></select>
   <button id="metro">🥁 박자 켬</button>
   <button id="listen">👂 듣기</button>
   <button id="start">▶ 시작</button>
   <button id="pause" disabled>⏸ 멈춤</button>
-  <button id="reset">⏹ 처음으로</button>
+  <button id="reset">⏹ 처음</button>
 </div>
-<div id="top"><div id="face">😺</div><div><div id="msg">시작을 누르고 내려오는 건반을 쳐요!</div>점수: <b id="score">0</b></div></div>
+<div id="top"><div id="face">😺</div><div><div id="msg">시작을 누르고 내려오는 건반을 쳐요!</div><span>점수: <b id="score">0</b> · 🏆 최고: <b id="best">0</b>%</span></div></div>
 <div id="stage">
   <canvas id="cv" width="720" height="260"></canvas>
   <div id="piano"></div>
@@ -51,13 +55,21 @@
 <p class="hint">키보드: A S D F G H J K = 도~높은도 (드럼은 스페이스바)</p>
 
 <script>
-// 곡 데이터: 음이름(c=높은 도) + 박자수(생략시 1)
+// 곡 데이터 (모두 저작권이 끝난 전래/고전 곡): 음이름(c=높은 도) + 박자수(생략시 1, .5=반박)
 const SONGS = {
-  "반짝반짝 작은별": "C C G G A A G2 F F E E D D C2 G G F F E E D2 G G F F E E D2 C C G G A A G2 F F E E D D C2",
-  "나비야": "G E E2 F D D2 C D E F G G G2 G E E E F D D D C E G G E E E2",
-  "비행기": "E D C D E E E2 D D D2 E G G2 E D C D E E E E D D E D C2"
+  "반짝반짝 작은별": {bpm:90,  n:"C C G G A A G2 F F E E D D C2 G G F F E E D2 G G F F E E D2 C C G G A A G2 F F E E D D C2"},
+  "나비야":          {bpm:100, n:"G E E2 F D D2 C D E F G G G2 G E E E F D D D C E G G E E E2"},
+  "비행기":          {bpm:100, n:"E D C D E E E2 D D D2 E G G2 E D C D E E E E D D E D C2"},
+  "런던 다리":       {bpm:100, n:"G A G F E F G2 D E F2 E F G2 G A G F E F G2 D2 G E C2"},
+  "환희의 송가":     {bpm:100, n:"E E F G G F E D C C D E E1.5 D.5 D2 E E F G G F E D C C D E D1.5 C.5 C2"},
+  "징글벨":          {bpm:110, n:"E E E2 E E E2 E G C1.5 D.5 E4 F F F1.5 F.5 F E E E.5 E.5 E D D E D2 G2"},
+  "맥도날드 농장":   {bpm:110, n:"G G G D E E D2 B B A A G3 D G G G D E E D2 B B A A G3"},
+  "아침 종소리":     {bpm:100, n:"C D E C C D E C E F G2 E F G2 G.5 A.5 G.5 F.5 E C G.5 A.5 G.5 F.5 E C C G C2 C G C2"}
 };
-const BPM = 90, BEAT = 60 / BPM, LEAD = 4;
+const LEAD = 4;
+let BEAT = .6;
+const song = () => SONGS[$('song').value];
+const setTempo = () => BEAT = 60 / (song().bpm * +$('speed').value);
 const KEYS = ['C','D','E','F','G','A','B','c'];
 const NAMES = ['도','레','미','파','솔','라','시','도'];
 const FREQ = [261.63,293.66,329.63,349.23,392,440,493.88,523.25];
@@ -68,7 +80,24 @@ const KB = 'asdfghjk';
 const $ = id => document.getElementById(id);
 Object.keys(SONGS).forEach(n => $('song').add(new Option(n, n)));
 
-let ac, notes = [], t0 = 0, playing = false, paused = false, score = 0;
+let ac, notes = [], t0 = 0, playing = false, paused = false, score = 0, combo = 0;
+let fx = [], laneHit = {k: 0, at: -1e9}; // 판정 글자 효과, 마지막으로 누른 줄
+
+// 게임 시계. '기다려 주기' 모드에서는 다음 음이 판정선에 닿으면 시계를 붙잡아 둠
+let offset = 0;
+const learn = () => $('mode').value === 'learn';
+function clock(){
+  let now = ac.currentTime - offset;
+  const n = learn() && notes.find(n => !n.judged);
+  if (n) { const t = t0 + n.beat * BEAT; if (now > t) { offset += now - t; now = t; } }
+  return now;
+}
+
+// 최고 기록 (곡별, 기기에 저장)
+const bestKey = () => `best:${$('mode').value}:${$('song').value}`;
+const getBest = () => { try { return +localStorage.getItem(bestKey()) || 0; } catch { return 0; } };
+const showBest = () => $('best').textContent = getBest();
+$('song').onchange = $('mode').onchange = showBest; showBest();
 const isDrum = () => $('inst').value === 'drum';
 function audio(){ ac = ac || new (window.AudioContext||window.webkitAudioContext)(); if (!paused) ac.resume(); return ac; }
 
@@ -83,7 +112,7 @@ $('pause').onclick = () => {
 // 완전 정지 + 리셋: 오디오를 닫아 예약된 소리(준비 박자, 듣기)까지 모두 끊음
 $('reset').onclick = () => {
   if (ac) { ac.close(); ac = null; }
-  playing = paused = false; score = 0; notes = [];
+  playing = paused = false; score = 0; combo = 0; notes = []; fx = [];
   $('score').textContent = 0;
   $('pause').textContent = '⏸ 멈춤'; $('pause').disabled = true; $('listen').disabled = false;
   cx.clearRect(0, 0, cv.width, cv.height);
@@ -182,21 +211,23 @@ addEventListener('keydown', e => {
 // ---------- 게임 ----------
 $('listen').onclick = () => {
   const a = audio(), s = a.currentTime + .2;
-  parse(SONGS[$('song').value]).forEach(n =>
+  setTempo();
+  parse(song().n).forEach(n =>
     isDrum() ? drum(s + n.beat * BEAT, n.len < 2) : piano(FREQ[n.k], s + n.beat * BEAT));
 };
 
 $('start').onclick = () => {
   paused = false; $('pause').textContent = '⏸ 멈춤'; $('pause').disabled = false; $('listen').disabled = false;
   const a = audio();
-  notes = parse(SONGS[$('song').value]);
+  setTempo();
+  notes = parse(song().n);
   t0 = a.currentTime + LEAD * BEAT;
   for (let i = 0; i < LEAD; i++) tick(a.currentTime + i * BEAT);
   // 곡 전체 박자 드럼 미리 예약 (멈춤 시 오디오 시계와 함께 멈춤)
   metroGain = a.createGain(); metroGain.gain.value = metroOn ? 1 : 0; metroGain.connect(a.destination);
   const last = notes[notes.length - 1], total = last.beat + last.len;
-  for (let i = 0; i < total; i++) beatDrum(t0 + i * BEAT, i % 4 === 0);
-  score = 0; playing = true;
+  if (!learn()) for (let i = 0; i < total; i++) beatDrum(t0 + i * BEAT, i % 4 === 0);
+  score = 0; combo = 0; fx = []; offset = 0; playing = true;
   $('score').textContent = 0; react('😺', '준비~ 하나, 둘, 셋, 넷!');
   requestAnimationFrame(draw);
 };
@@ -209,19 +240,30 @@ function press(el, key){
   flash(el);
   if (key >= 0) piano(FREQ[key]);
   if (!playing) { if (key < 0) drum(0, true); return; }
-  const now = ac.currentTime;
+  const now = clock();
   let best = null, bd = 1e9;
   for (const n of notes) if (!n.judged && (key < 0 || n.k === key)) {
     const d = Math.abs(now - (t0 + n.beat * BEAT));
     if (d < bd) { bd = d; best = n; }
   }
+  if (learn()) { // 기다려 주기: 다음 음의 건반을, 판정선 근처(반 박 이내)에서 누르면 통과
+    const n = notes.find(n => !n.judged);
+    best = n && (key < 0 || n.k === key) && t0 + n.beat * BEAT - now < BEAT * .5 ? n : null; bd = 0;
+  }
   if (key < 0) drum(0, !best || best.len < 2);
+  laneHit = {k: key, at: performance.now()};
   if (!best || bd > .3) return;
   best.judged = true;
-  if (bd < .08)      { score += 100; best.res = 'p'; react('😻', '최고예요! 💯'); }
-  else if (bd < .18) { score += 50;  best.res = 'g'; react('😸', '좋아요! 👍'); }
-  else               {               best.res = 'm'; react('🙀', '조금 아쉬워요'); }
+  const c = () => combo >= 3 ? ` 🔥${combo}콤보` : '';
+  if (bd < .08)      { score += 100; best.res = 'p'; combo++; react('😻', '최고예요! 💯' + c()); addFx(best, '최고!', '#2f9e44'); }
+  else if (bd < .18) { score += 50;  best.res = 'g'; combo++; react('😸', '좋아요! 👍' + c());  addFx(best, '좋아!', '#1c7ed6'); }
+  else               {               best.res = 'm'; combo = 0; react('🙀', '조금 아쉬워요');   addFx(best, '아쉬워', '#868e96'); }
   $('score').textContent = score;
+}
+function addFx(n, txt, color){ fx.push({k: n.k, txt, color, at: performance.now()}); }
+function miss(n){
+  n.judged = true; n.res = 'm'; combo = 0;
+  react('😿', '놓쳤어요~'); addFx(n, '놓침', '#adb5bd');
 }
 
 const cv = $('cv'), cx = cv.getContext('2d');
@@ -235,17 +277,35 @@ addEventListener('resize', fit); fit();
 
 function draw(){
   if (!playing) return;
-  const now = ac.currentTime, W = cv.clientWidth, H = cv.clientHeight, lw = W / 8;
+  const now = clock(), W = cv.clientWidth, H = cv.clientHeight, lw = W / 8;
   const HY = H - 12, PX = Math.max(HY / 3.2, 40); // 판정선 y, 1박당 픽셀 (화면에 약 3박이 보이게)
   cx.clearRect(0, 0, W, H);
   // 세로 레인
   for (let i = 1; i < 8; i++) { cx.fillStyle = '#f2f2f2'; cx.fillRect(i * lw, 0, 1, H); }
   // 판정선
   cx.fillStyle = '#ff8c42'; cx.fillRect(0, HY, W, 5);
+  const laneX = k => isDrum() || k < 0 ? W / 2 - lw / 2 : k * lw;
+  // 누른 줄 반짝임
+  const pt = performance.now(), la = 1 - (pt - laneHit.at) / 200;
+  if (la > 0) {
+    const g = cx.createLinearGradient(0, HY, 0, HY - 120);
+    g.addColorStop(0, `rgba(255,140,66,${.5 * la})`); g.addColorStop(1, 'rgba(255,140,66,0)');
+    cx.fillStyle = g; cx.fillRect(laneX(laneHit.k), HY - 120, lw, 125);
+  }
+  // 판정 글자 (위로 떠오르며 사라짐)
+  fx = fx.filter(f => pt - f.at < 600);
+  cx.textAlign = 'center';
+  for (const f of fx) {
+    const p = (pt - f.at) / 600;
+    cx.globalAlpha = 1 - p; cx.fillStyle = f.color;
+    cx.font = `bold ${Math.min(20, lw * .4)}px sans-serif`;
+    cx.fillText(f.txt, laneX(f.k) + lw / 2, HY - 30 - p * 40);
+  }
+  cx.globalAlpha = 1;
   let left = 0;
   for (const n of notes) {
     const t = t0 + n.beat * BEAT;
-    if (!n.judged && now - t > .3) { n.judged = true; n.res = 'm'; react('😿', '놓쳤어요~'); }
+    if (!n.judged && now - t > .3) miss(n);
     if (!n.judged) left++;
     const y = HY - (t - now) / BEAT * PX, h = n.len * PX - 8;
     if (y < 0 || y - h > H) continue;
@@ -265,7 +325,10 @@ function finish(){
   playing = false; $('pause').disabled = true;
   const pct = Math.round(score / (notes.length * 100) * 100);
   const stars = pct >= 85 ? '⭐⭐⭐' : pct >= 60 ? '⭐⭐' : '⭐';
-  react(pct >= 85 ? '🥳' : pct >= 60 ? '😊' : '🤗', `끝! 정확도 ${pct}% ${stars}`);
+  const rec = pct > getBest();
+  if (rec) try { localStorage.setItem(bestKey(), pct); } catch {}
+  showBest();
+  react(pct >= 85 ? '🥳' : pct >= 60 ? '😊' : '🤗', `끝! 정확도 ${pct}% ${stars}${rec ? ' 🏆 새 기록!' : ''}`);
 }
 </script>
 </body>
