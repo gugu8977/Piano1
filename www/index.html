@@ -69,6 +69,7 @@
   <canvas id="cv" width="720" height="260"></canvas>
   <div id="settings" class="panel" hidden>
     <div class="grid">
+      <span>화면</span><select id="view"><option value="fall">🎹 내려오는 음표</option><option value="sheet">🎼 악보</option></select>
       <span>빠르기</span><select id="speed"><option value=".75">🐢 느리게</option><option value="1" selected>🚶 보통</option><option value="1.25">🐇 빠르게</option></select>
       <span>놀이 방법</span><select id="mode"><option value="play">🎮 박자 게임</option><option value="learn">🐣 기다려 주기</option></select>
       <span>악기</span><select id="inst"><option value="piano">🎹 피아노</option><option value="xylo">🔔 실로폰</option><option value="box">🎶 오르골</option><option value="drum">🥁 드럼</option></select>
@@ -304,7 +305,7 @@ const labelOf = k => k < 8 ? lab()[k] : $('label').value === 'none' ? '' : BNAME
 const updateLabels = () => whiteEls.forEach((el, i) => el.textContent = lab()[i]);
 
 // 설정 저장/불러오기 (기기에 저장, 실패해도 무시)
-const SAVE = ['song', 'speed', 'mode', 'inst', 'label', 'judge', 'lat'];
+const SAVE = ['song', 'view', 'speed', 'mode', 'inst', 'label', 'judge', 'lat'];
 try {
   const s = JSON.parse(localStorage.getItem('settings') || '{}');
   SAVE.forEach(id => { if (s[id] != null && [...$(id).options].some(o => o.value === s[id])) $(id).value = s[id]; });
@@ -455,7 +456,7 @@ function press(el, key){
   else               {               best.res = 'm'; combo = 0; react('🙀', '조금 아쉬워요');   addFx(best, '아쉬워', '#868e96'); }
   $('score').textContent = score;
 }
-function addFx(n, txt, color){ fx.push({k: n.k, txt, color, at: performance.now()}); }
+function addFx(n, txt, color){ fx.push({k: n.k, n, txt, color, at: performance.now()}); }
 function miss(n){
   n.judged = true; n.res = 'm'; combo = 0;
   react('😿', '놓쳤어요~'); addFx(n, '놓침', '#adb5bd');
@@ -470,47 +471,12 @@ function fit(){
 }
 addEventListener('resize', fit); fit();
 
+const sheet = () => $('view').value === 'sheet';
 function draw(){
   if (!playing) return;
-  const now = clock(), W = cv.clientWidth, H = cv.clientHeight, lw = W / 8;
-  const HY = H - 12, PX = Math.max(HY / 3.2, 40); // 판정선 y, 1박당 픽셀 (화면에 약 3박이 보이게)
-  cx.clearRect(0, 0, W, H);
-  // 세로 레인
-  for (let i = 1; i < 8; i++) { cx.fillStyle = '#f2f2f2'; cx.fillRect(i * lw, 0, 1, H); }
-  // 마디선 (한 마디 = meter박)
-  const last = notes[notes.length - 1], total = last.beat + last.len, m = meter();
-  cx.fillStyle = '#ffe8cc';
-  for (let b = 0; b <= total; b += m) {
-    const y = HY - (t0 + b * BEAT - now) / BEAT * PX;
-    if (y > 0 && y < HY) cx.fillRect(0, y, W, 2);
-  }
+  const now = clock(), last = notes[notes.length - 1], total = last.beat + last.len;
   // 진행 막대
   $('progress').firstChild.style.width = Math.max(0, Math.min(100, (now - t0) / (total * BEAT) * 100)) + '%';
-  // 판정선
-  cx.fillStyle = '#ff8c42'; cx.fillRect(0, HY, W, 5);
-  const laneX = k => isDrum() || k < 0 ? W / 2 - lw / 2 : k < 8 ? k * lw : (BLACK[k - 8][0] + .5) * lw;
-  // 누른 줄 반짝임
-  const pt = performance.now(), la = 1 - (pt - laneHit.at) / 200;
-  if (la > 0) {
-    const g = cx.createLinearGradient(0, HY, 0, HY - 120);
-    g.addColorStop(0, `rgba(255,140,66,${.5 * la})`); g.addColorStop(1, 'rgba(255,140,66,0)');
-    cx.fillStyle = g; cx.fillRect(laneX(laneHit.k), HY - 120, lw, 125);
-  }
-  // 판정 글자 (위로 떠오르며 사라짐)
-  fx = fx.filter(f => pt - f.at < 600);
-  cx.textAlign = 'center';
-  for (const f of fx) {
-    const p = (pt - f.at) / 600;
-    cx.globalAlpha = 1 - p; cx.fillStyle = f.color;
-    cx.font = `bold ${Math.min(20, lw * .4)}px sans-serif`;
-    cx.fillText(f.txt, laneX(f.k) + lw / 2, HY - 30 - p * 40);
-  }
-  cx.globalAlpha = 1;
-  // 시작 전 4-3-2-1
-  if (now < t0) {
-    cx.fillStyle = '#ff8c42'; cx.font = `bold ${Math.min(72, H * .4)}px sans-serif`; cx.textBaseline = 'middle';
-    cx.fillText(Math.ceil((t0 - now) / BEAT - 1e-6), W / 2, HY / 2); cx.textBaseline = 'alphabetic';
-  }
   let left = 0;
   for (const n of notes) {
     const t = t0 + n.beat * BEAT;
@@ -520,6 +486,58 @@ function draw(){
     }
     if (!auto && !n.judged && now - t > .3 * JUDGE() + LAT()) miss(n);
     if (!n.judged) left++;
+  }
+  (sheet() ? drawSheet : drawFall)(now, total);
+  // 다음에 칠 건반을 1박 전부터 빛내기
+  const nx = notes.find(n => !n.judged), hk = nx && !isDrum() && t0 + nx.beat * BEAT - now < BEAT ? nx.k : -1;
+  keyEls.forEach((el, i) => el.classList.toggle('hint', i === hk));
+  if (!left) { clearHints(); return finish(); }
+  raf = requestAnimationFrame(draw);
+}
+const resColor = n => ({p:'#2f9e44', g:'#1c7ed6', m:'#bbb'}[n.res] || (isDrum() ? '#ff8c42' : colorOf(n.k)));
+// 시작 전 4-3-2-1
+function countIn(now, W, y, size){
+  if (now >= t0) return;
+  cx.fillStyle = '#ff8c42'; cx.font = 'bold ' + size + 'px sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  cx.fillText(Math.ceil((t0 - now) / BEAT - 1e-6), W / 2, y); cx.textBaseline = 'alphabetic';
+}
+
+// ----- 내려오는 음표 화면 -----
+function drawFall(now, total){
+  const W = cv.clientWidth, H = cv.clientHeight, lw = W / 8;
+  const HY = H - 12, PX = Math.max(HY / 3.2, 40); // 판정선 y, 1박당 픽셀 (화면에 약 3박이 보이게)
+  cx.clearRect(0, 0, W, H);
+  // 세로 레인
+  for (let i = 1; i < 8; i++) { cx.fillStyle = '#f2f2f2'; cx.fillRect(i * lw, 0, 1, H); }
+  // 마디선 (한 마디 = meter박)
+  cx.fillStyle = '#ffe8cc';
+  for (let b = 0; b <= total; b += meter()) {
+    const y = HY - (t0 + b * BEAT - now) / BEAT * PX;
+    if (y > 0 && y < HY) cx.fillRect(0, y, W, 2);
+  }
+  // 판정선
+  cx.fillStyle = '#ff8c42'; cx.fillRect(0, HY, W, 5);
+  const laneX = k => isDrum() || k < 0 ? W / 2 - lw / 2 : k < 8 ? k * lw : (BLACK[k - 8][0] + .5) * lw;
+  // 누른 줄 반짝임
+  const pt = performance.now(), la = 1 - (pt - laneHit.at) / 200;
+  if (la > 0) {
+    const g = cx.createLinearGradient(0, HY, 0, HY - 120);
+    g.addColorStop(0, 'rgba(255,140,66,' + .5 * la + ')'); g.addColorStop(1, 'rgba(255,140,66,0)');
+    cx.fillStyle = g; cx.fillRect(laneX(laneHit.k), HY - 120, lw, 125);
+  }
+  // 판정 글자 (위로 떠오르며 사라짐)
+  fx = fx.filter(f => pt - f.at < 600);
+  cx.textAlign = 'center';
+  for (const f of fx) {
+    const p = (pt - f.at) / 600;
+    cx.globalAlpha = 1 - p; cx.fillStyle = f.color;
+    cx.font = 'bold ' + Math.min(20, lw * .4) + 'px sans-serif';
+    cx.fillText(f.txt, laneX(f.k) + lw / 2, HY - 30 - p * 40);
+  }
+  cx.globalAlpha = 1;
+  countIn(now, W, HY / 2, Math.min(72, H * .4));
+  for (const n of notes) {
+    const t = t0 + n.beat * BEAT;
     const y = HY - (t - now) / BEAT * PX, h = n.len * PX - 8;
     if (y < 0 || y - h > H) continue;
     const x = laneX(n.k);
@@ -527,15 +545,111 @@ function draw(){
     if (n.res === 'a') cx.globalAlpha = .5;
     cx.beginPath(); cx.roundRect(x + 6, y - h, lw - 12, h, 10); cx.fill(); cx.globalAlpha = 1;
     if (!n.res && !isDrum()) {
-      cx.fillStyle = '#fff'; cx.font = `bold ${Math.min(22, lw * .45)}px sans-serif`; cx.textAlign = 'center';
+      cx.fillStyle = '#fff'; cx.font = 'bold ' + Math.min(22, lw * .45) + 'px sans-serif'; cx.textAlign = 'center';
       cx.fillText(labelOf(n.k), x + lw / 2, y - 10);
     }
   }
-  // 다음에 칠 건반을 1박 전부터 빛내기
-  const nx = notes.find(n => !n.judged), hk = nx && !isDrum() && t0 + nx.beat * BEAT - now < BEAT ? nx.k : -1;
-  keyEls.forEach((el, i) => el.classList.toggle('hint', i === hk));
-  if (!left) { clearHints(); return finish(); }
-  raf = requestAnimationFrame(draw);
+}
+
+// ----- 악보 화면: 오선지에 음표, 주황 진행선이 왼쪽→오른쪽으로 이동. 줄 끝에 닿으면 다음 쪽으로 넘김 -----
+function drawSheet(now, total){
+  const W = cv.clientWidth, H = cv.clientHeight, m = meter(), M = Math.ceil(total / m - 1e-9);
+  cx.clearRect(0, 0, W, H);
+  const rows = H >= 230 ? 2 : 1, rh = H / rows;              // 화면이 높으면 두 줄
+  const g = Math.max(6, Math.min(14, (rh - 20) / 9));        // 오선 줄 간격
+  const L = 12 + g * 2.4, R = 10;                            // 왼쪽: 박자표 자리
+  const mpp = Math.max(1, Math.floor((W - L - R) / (m * Math.max(34, g * 3.4)))); // 한 줄에 들어갈 마디 수
+  const mw = (W - L - R) / mpp, per = mpp * rows;            // 마디 너비, 한 쪽의 마디 수
+  const beatNow = Math.min(Math.max(0, (now - t0) / BEAT), total - 1e-6);
+  const page = Math.floor(Math.floor(beatNow / m) / per);
+  const staffTop = r => r * rh + (rh - 8 * g - 14) / 2 + 2 * g; // 맨 윗줄 y
+  const pos = beat => { // 박 → 화면 위치
+    const mi = Math.floor(beat / m + 1e-9), i = mi % per, r = Math.floor(i / mpp);
+    return {pg: Math.floor(mi / per), r, x: L + (i % mpp) * mw + g * 1.6 + (beat - mi * m) / m * (mw - g * 2.6)};
+  };
+  const stepOf = k => isDrum() ? 6 : k < 8 ? k : BLACK[k - 8][0] + 1; // 0=도(아래 덧줄) … 7=높은 도
+  const yOf = (r, s) => staffTop(r) + 4 * g - (s - 2) * g / 2;       // 맨 아랫줄 = 미
+  // 오선, 마디선, 박자표
+  cx.strokeStyle = '#555'; cx.fillStyle = '#555'; cx.lineWidth = 1.2;
+  for (let r = 0; r < rows; r++) {
+    const first = page * per + r * mpp; if (first >= M) break;
+    const nm = Math.min(mpp, M - first), top = staffTop(r), end = L + nm * mw;
+    cx.beginPath();
+    for (let i = 0; i < 5; i++) { cx.moveTo(8, top + i * g); cx.lineTo(end, top + i * g); }
+    for (let c = 0; c <= nm; c++) { const x = c ? L + c * mw : 8; cx.moveTo(x, top); cx.lineTo(x, top + 4 * g); }
+    cx.stroke();
+    if (first + nm === M) cx.fillRect(end - 4, top, 4, 4 * g + 1); // 곡의 끝: 굵은 마침줄
+    cx.font = 'bold ' + g * 2 + 'px serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillText(m, 10 + g * 1.1, top + g); cx.fillText(4, 10 + g * 1.1, top + 3 * g); cx.textBaseline = 'alphabetic';
+    cx.font = Math.max(9, g * .9) + 'px sans-serif'; cx.fillStyle = '#aaa'; cx.textAlign = 'left';
+    cx.fillText(first + 1, L + 2, top - g * 1.2); cx.fillStyle = '#555'; // 마디 번호
+  }
+  // 진행선
+  const p = pos(beatNow);
+  if (p.pg === page) {
+    const top = staffTop(p.r);
+    cx.fillStyle = 'rgba(255,140,66,.18)'; cx.fillRect(p.x - g * .2, top - 2 * g, g * 1.6, 8 * g);
+    cx.fillStyle = '#ff8c42'; cx.fillRect(p.x - 1.5, top - 2 * g, 3, 8 * g);
+  }
+  // 쉼표 (음과 음 사이 빈 박)
+  let prevEnd = 0;
+  cx.strokeStyle = '#555'; cx.lineWidth = Math.max(1.5, g * .18);
+  for (const n of notes) {
+    for (let b = prevEnd; b < n.beat - 1e-6; ) { // 마디를 넘지 않게 나눠 그림
+      const len = Math.min(n.beat - b, (Math.floor(b / m + 1e-9) + 1) * m - b), q = pos(b);
+      if (q.pg === page) {
+        const x = q.x + g * .6, y = yOf(q.r, 6);
+        if (len >= 2) cx.fillRect(x - g * .6, y - g * .5, g * 1.2, g * .5);  // 2분 쉼표
+        else { cx.beginPath(); cx.moveTo(x - g * .3, y - g * 1.4); cx.lineTo(x + g * .3, y - g * .6); cx.lineTo(x - g * .3, y + g * .1);
+               cx.lineTo(x + g * .3, y + g * .8); cx.lineTo(x - g * .2, y + g * 1.2); cx.stroke(); }          // 4분 쉼표(지그재그)
+      }
+      b += len;
+    }
+    prevEnd = Math.max(prevEnd, n.beat + n.len);
+  }
+  // 음표
+  const nx = notes.find(n => !n.judged), lab = Math.max(10, Math.min(15, g * 1.2 + 2));
+  for (const n of notes) {
+    const q = pos(n.beat); if (q.pg !== page) continue;
+    const s = stepOf(n.k), x = q.x + g * .6, y = yOf(q.r, s), rx = g * .62, top = staffTop(q.r);
+    if (n === nx && !auto) { cx.fillStyle = 'rgba(255,140,66,.3)'; cx.beginPath(); cx.arc(x, y, g * 1.3, 0, 7); cx.fill(); } // 다음 음
+    const col = resColor(n);
+    cx.globalAlpha = n.res === 'a' ? .5 : 1;
+    cx.strokeStyle = '#444'; cx.lineWidth = 1.2;
+    if (s === 0) { cx.beginPath(); cx.moveTo(x - g, y); cx.lineTo(x + g, y); cx.stroke(); } // 덧줄 (가운데 도)
+    if (n.k >= 8 && !isDrum()) { cx.fillStyle = '#444'; cx.font = g * 1.6 + 'px serif'; cx.textAlign = 'center'; cx.fillText('♭', x - g * 1.35, y + g * .45); }
+    // 머리: 2박 이상은 속이 빈 음표
+    cx.beginPath(); cx.ellipse(x, y, rx, g * .45, -.35, 0, 7);
+    if (n.len >= 2) { cx.fillStyle = '#fff'; cx.fill(); cx.strokeStyle = col; cx.lineWidth = Math.max(2, g * .22); cx.stroke(); }
+    else { cx.fillStyle = col; cx.fill(); }
+    // 기둥과 꼬리 (온음표는 기둥 없음)
+    if (n.len < 4) {
+      const up = s < 6, sx = up ? x + rx - .8 : x - rx + .8, sy = up ? y - 3.3 * g : y + 3.3 * g;
+      cx.strokeStyle = col; cx.lineWidth = Math.max(1.5, g * .14);
+      cx.beginPath(); cx.moveTo(sx, y); cx.lineTo(sx, sy); cx.stroke();
+      if (n.len <= .5) { cx.beginPath(); cx.moveTo(sx, sy); cx.quadraticCurveTo(sx + g * 1.1, up ? sy + g * 1.2 : sy - g * 1.2, sx + g * .7, up ? sy + g * 2.2 : sy - g * 2.2); cx.stroke(); }
+    }
+    // 점음표 (1.5박, 3박)
+    if ([.75, 1.5, 3].includes(n.len)) { cx.fillStyle = col; cx.beginPath(); cx.arc(x + g * 1.1, y - (s % 2 ? 0 : g * .3), g * .17, 0, 7); cx.fill(); }
+    cx.globalAlpha = 1;
+    // 계이름 (오선 아래)
+    if (!isDrum()) {
+      cx.fillStyle = n.res ? '#aaa' : colorOf(n.k) === '#ffd43b' ? '#e0a800' : colorOf(n.k);
+      cx.font = 'bold ' + lab + 'px sans-serif'; cx.textAlign = 'center';
+      cx.fillText(labelOf(n.k), x, top + 6 * g + lab * .4);
+    }
+  }
+  // 판정 글자 (오선 위에서 떠오르며 사라짐)
+  const pt = performance.now();
+  fx = fx.filter(f => pt - f.at < 600);
+  for (const f of fx) {
+    const q = pos(f.n.beat); if (q.pg !== page) continue;
+    const t = (pt - f.at) / 600;
+    cx.globalAlpha = 1 - t; cx.fillStyle = f.color; cx.font = 'bold ' + Math.max(12, g * 1.3) + 'px sans-serif'; cx.textAlign = 'center';
+    cx.fillText(f.txt, q.x + g * .6, staffTop(q.r) - g * 1.6 - t * g * 1.5);
+  }
+  cx.globalAlpha = 1;
+  countIn(now, W, H / 2, Math.min(64, H * .35));
 }
 
 function clearHints(){ keyEls.forEach(el => el.classList.remove('hint')); }
