@@ -81,9 +81,9 @@
   </div>
   <div id="maker" class="panel" hidden>
     <div class="row"><b>✏️ 내 노래</b><input id="mkName" placeholder="노래 이름" maxlength="20">
-      <button id="mkTry">👂 듣기</button><button id="mkBack">⌫ 한 음 지우기</button><button id="mkSave">💾 저장</button><button id="mkDel">🗑 삭제</button><button id="mkClose">닫기</button></div>
+      <button id="mkTry">👂 듣기</button><button id="mkRest">𝄽 쉼</button><button id="mkBack">⌫ 한 음 지우기</button><button id="mkSave">💾 저장</button><button id="mkDel">🗑 삭제</button><button id="mkClose">닫기</button></div>
     <textarea id="mkNotes" rows="2" placeholder="아래 건반을 누르거나 직접 적어요. 예) 도 도 솔 솔 라 라 솔2"></textarea>
-    <small class="mkHelp">길게 칠 음은 뒤에 박자 수(2, 3, .5)를 붙여요. 높은 도는 '높은도', 반음은 '시♭'처럼 써요</small>
+    <small class="mkHelp">길게 칠 음은 뒤에 박자 수(2, 3, .5)를 붙여요. 높은 도는 '높은도', 반음은 '시♭', 쉬는 박자는 '쉼'</small>
     <div id="mkMsg" style="color:#e03131;font-weight:bold"></div>
   </div>
   <div id="result" class="panel" hidden>
@@ -98,7 +98,7 @@
 <p class="hint">키보드: A S D F G H J K = 도~높은도, W E T Y U = 검은건반 (드럼은 스페이스바)</p>
 
 <script>
-// 곡 데이터 (모두 저작권이 끝난 전래/고전 곡): 음이름(c=높은 도, 뒤에 #/b는 반음) + 박자수(생략시 1, .5=반박)
+// 곡 데이터 (모두 저작권이 끝난 전래/고전 곡): 음이름(c=높은 도, 뒤에 #/b는 반음, R=쉼표) + 박자수(생략시 1, .5=반박)
 const SONGS = {
   // lv: 1 쉬움, 2 보통, 3 어려움 / m: 한 마디 박자 수(기본 4)
   "뜨거운 빵":         {lv:1, bpm:90,  n:"E D C2 E D C2 C.5 C.5 C.5 C.5 D.5 D.5 D.5 D.5 E D C2"},
@@ -210,14 +210,15 @@ $('reset').onclick = () => {
 // 앱/탭이 화면에서 사라지면 자동 멈춤
 document.addEventListener('visibilitychange', () => { if (document.hidden && playing && !paused) $('pause').onclick(); });
 
-function parse(str){
+function parse(str){ // 쉼표(R)는 박자만 흐르고 음표는 만들지 않음
   let beat = 0;
   return str.split(' ').map(tok => {
+    if (tok[0] === 'R') { beat += +tok.slice(1) || 1; return null; }
     const acc = /^[#b]$/.test(tok[1] || '') ? tok[1] : '';
     const k = keyOf(tok[0], acc), len = +tok.slice(1 + acc.length) || 1;
     const n = {k, beat, len, judged:false};
     beat += len; return n;
-  });
+  }).filter(Boolean);
 }
 
 // ---------- 소리 ----------
@@ -320,20 +321,20 @@ $('label').addEventListener('change', updateLabels);
 $('setBtn').onclick = () => { if (playing && !paused) $('pause').onclick(); $('result').hidden = true; $('settings').hidden = false; };
 $('setClose').onclick = () => $('settings').hidden = true;
 // ---------- 내 노래 만들기 ----------
-const KO = {'도':'C','레':'D','미':'E','파':'F','솔':'G','라':'A','시':'B','높은도':'c'};
+const KO = {'도':'C','레':'D','미':'E','파':'F','솔':'G','라':'A','시':'B','높은도':'c','쉼':'R'};
 const toKo = s => s.split(' ').map(t => {
   const acc = /^[#b]$/.test(t[1] || '') ? t[1] : '';
   return (Object.keys(KO).find(k => KO[k] === t[0]) || t[0]) + ({'#': '♯', b: '♭'}[acc] || '') + t.slice(1 + acc.length);
 }).join(' ');
 function toNotes(text){ // "도 레2 높은도.5" → "C D2 c.5" (잘못된 글자는 throw)
   const out = text.trim().split(/[\s,]+/).filter(Boolean).map(tok => {
-    const m = tok.match(/^(높은도|도|레|미|파|솔|라|시|[A-G]|c)([#b♯♭]?)(\d*\.?\d*)$/);
+    const m = tok.match(/^(높은도|도|레|미|파|솔|라|시|쉼|[A-G]|c|R)([#b♯♭]?)(\d*\.?\d*)$/);
     if (!m || (m[3] && !(+m[3] > 0))) throw tok;
     const L = KO[m[1]] || m[1], acc = {'♯': '#', '♭': 'b'}[m[2]] || m[2];
-    if (keyOf(L, acc) < 0) throw tok; // 건반에 없는 음 (예: 미♯)
+    if (L === 'R' ? acc : keyOf(L, acc) < 0) throw tok; // 건반에 없는 음 (예: 미♯)
     return L + acc + m[3];
   });
-  if (!out.length) throw '';
+  if (!out.some(t => t[0] !== 'R')) throw ''; // 쉼표만 있으면 안 됨
   return out.join(' ');
 }
 function mkRead(){
@@ -346,6 +347,7 @@ $('mkOpen').onclick = () => {
   $('mkName').value = s.lv === 4 ? $('song').value : ''; $('mkNotes').value = s.lv === 4 ? toKo(s.n) : '';
 };
 $('mkClose').onclick = () => $('maker').hidden = true;
+$('mkRest').onclick = () => { const t = $('mkNotes'); t.value = (t.value.trim() + ' 쉼').trim(); };
 $('mkBack').onclick = () => { const t = $('mkNotes'); t.value = t.value.trim().split(/\s+/).slice(0, -1).join(' '); };
 $('mkTry').onclick = () => {
   const n = mkRead(); if (!n) return; $('mkMsg').textContent = '';
@@ -370,6 +372,12 @@ $('mkDel').onclick = () => {
 };
 
 addEventListener('contextmenu', e => e.preventDefault());
+window.handleBack = () => {
+  for (const id of ['maker', 'settings', 'result']) if (!$(id).hidden) { $(id).hidden = true; return true; }
+  if (playing && !paused) { $('pause').onclick(); return true; }
+  if (playing) { $('reset').onclick(); return true; }
+  return false;
+};
 // 결과 창 버튼
 $('again').onclick = () => $('start').onclick();
 $('next').onclick = () => { const s = $('song'); s.selectedIndex = (s.selectedIndex + 1) % s.options.length; showBest(); saveSettings(); $('start').onclick(); };

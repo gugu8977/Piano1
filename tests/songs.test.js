@@ -25,7 +25,8 @@ for (const [name, s] of Object.entries(SONGS)) {
   for (const tok of s.n.split(' ')) {
     const acc = /^[#b]$/.test(tok[1] || '') ? tok[1] : '';
     const len = tok.slice(1 + acc.length);
-    if (keyOf(tok[0], acc) < 0 || (len && !(+len > 0))) bad.push(tok);
+    const isRest = tok[0] === 'R'; // 쉼표
+    if ((!isRest && keyOf(tok[0], acc) < 0) || (isRest && acc) || (len && !(+len > 0))) bad.push(tok);
     beats += +len || 1;
   }
   if (![1, 2, 3].includes(s.lv) || !(s.bpm > 0)) bad.push('lv/bpm');

@@ -2,6 +2,7 @@ package com.parksg.rhythmkids;
 
 import android.os.Bundle;
 import android.view.WindowManager;
+import androidx.activity.OnBackPressedCallback;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -14,6 +15,16 @@ public class MainActivity extends BridgeActivity {
         // 연주 중 화면이 꺼지지 않게
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         hideSystemBars();
+
+        // 뒤로가기: 게임(JS)이 먼저 처리(창 닫기/멈춤). 처리할 게 없을 때만 앱 종료
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                getBridge().getWebView().evaluateJavascript(
+                    "window.handleBack ? window.handleBack() : false",
+                    handled -> { if (!"true".equals(handled)) finish(); });
+            }
+        });
     }
 
     @Override
