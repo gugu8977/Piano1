@@ -25,15 +25,17 @@
     #face{font-size:26px} #msg{font-size:15px}
     #top>div{display:flex;gap:12px;align-items:center}
     select,button{font-size:13px;padding:3px 6px;border-radius:10px}
+    .panel .grid{grid-template-columns:repeat(4,auto);gap:6px 10px}
   }
   .w{flex:1;background:#fff;border:1px solid #999;border-radius:0 0 10px 10px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:10px;font-weight:bold;font-size:16px;box-sizing:border-box}
   .b{position:absolute;top:0;width:7%;height:60%;background:#222;border-radius:0 0 6px 6px;z-index:2}
+  .w.hint{background:linear-gradient(#fff 30%, var(--c))}
   .w.on{background:#ffd27a}.b.on{background:#666}
   #hit{width:min(170px,32vh);height:min(170px,32vh);flex-shrink:0;border-radius:50%;font-size:28px;font-weight:bold;background:#ff8c42;color:#fff;border:none;margin:8px auto;display:block;touch-action:none}
   #hit.on{transform:scale(.93);background:#ff6b1a}
   #stage{position:relative}
   /* 설정·결과 창: 게임 화면 위에 덮어서 표시 */
-  .panel{position:absolute;inset:0 8px 8px;background:#fff7e6f2;border-radius:16px;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;overflow:auto}
+  .panel{position:absolute;inset:0 8px 8px;background:#fff7e6;border-radius:16px;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;overflow:auto}
   .grid{display:grid;grid-template-columns:auto auto;gap:8px 12px;align-items:center;text-align:left;font-weight:bold}
   #rStars{font-size:44px;animation:pop .5s}
   @keyframes pop{0%{transform:scale(0)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
@@ -62,6 +64,8 @@
       <span>놀이 방법</span><select id="mode"><option value="play">🎮 박자 게임</option><option value="learn">🐣 기다려 주기</option></select>
       <span>악기</span><select id="inst"><option value="piano">🎹 피아노</option><option value="xylo">🔔 실로폰</option><option value="box">🎶 오르골</option><option value="drum">🥁 드럼</option></select>
       <span>건반 글자</span><select id="label"><option value="ko">도레미</option><option value="en">CDE</option><option value="none">글자 없음</option></select>
+      <span>판정</span><select id="judge"><option value="1.5">😊 너그럽게</option><option value="1" selected>🙂 보통</option><option value="0.7">😎 정확하게</option></select>
+      <span>타이밍 보정</span><select id="lat"><option value="0" selected>0ms</option><option value="0.05">+50ms</option><option value="0.1">+100ms</option><option value="0.15">+150ms</option><option value="0.25">+250ms (블루투스)</option></select>
       <span>박자 소리</span><button id="metro">🥁 박자 켬</button>
     </div>
     <button id="setClose">✔ 닫기</button>
@@ -96,6 +100,7 @@ const LEAD = 4;
 let BEAT = .6;
 const song = () => SONGS[$('song').value];
 const setTempo = () => BEAT = 60 / (song().bpm * +$('speed').value);
+const JUDGE = () => +$('judge').value, LAT = () => +$('lat').value;
 const meter = () => song().m || 4; // 한 마디 박자 수
 const KEYS = ['C','D','E','F','G','A','B','c'];
 const NAMES = ['도','레','미','파','솔','라','시','도'];
@@ -156,7 +161,7 @@ $('reset').onclick = () => {
   $('score').textContent = 0;
   $('pause').textContent = '⏸ 멈춤'; $('pause').disabled = true; $('listen').disabled = false;
   cx.clearRect(0, 0, cv.width, cv.height);
-  $('settings').hidden = $('result').hidden = true; $('progress').firstChild.style.width = 0;
+  $('settings').hidden = $('result').hidden = true; $('progress').firstChild.style.width = 0; clearHints();
   react('😺', '시작을 누르고 내려오는 건반을 쳐요!');
 };
 // 앱/탭이 화면에서 사라지면 자동 멈춤
@@ -232,7 +237,7 @@ function tick(when){
 // ---------- 건반 만들기 ----------
 const whiteEls = KEYS.map((_, i) => {
   const el = document.createElement('div');
-  el.className = 'w'; el.textContent = NAMES[i]; el.style.borderTop = `8px solid ${COLORS[i]}`;
+  el.className = 'w'; el.textContent = NAMES[i]; el.style.setProperty('--c', COLORS[i]); el.style.borderTop = `8px solid ${COLORS[i]}`;
   el.onpointerdown = e => { e.preventDefault(); press(el, i); };
   $('piano').append(el); return el;
 });
@@ -252,7 +257,7 @@ const lab = () => LABELS[$('label').value];
 const updateLabels = () => whiteEls.forEach((el, i) => el.textContent = lab()[i]);
 
 // 설정 저장/불러오기 (기기에 저장, 실패해도 무시)
-const SAVE = ['song', 'speed', 'mode', 'inst', 'label'];
+const SAVE = ['song', 'speed', 'mode', 'inst', 'label', 'judge', 'lat'];
 try {
   const s = JSON.parse(localStorage.getItem('settings') || '{}');
   SAVE.forEach(id => { if (s[id] != null && [...$(id).options].some(o => o.value === s[id])) $(id).value = s[id]; });
@@ -319,7 +324,7 @@ function press(el, key){
   try { navigator.vibrate && navigator.vibrate(15); } catch {}
   if (key >= 0) piano(FREQ[key]);
   if (!playing) { if (key < 0) drum(0, true); return; }
-  const now = clock();
+  const now = clock() - LAT(), J = JUDGE();
   let best = null, bd = 1e9;
   for (const n of notes) if (!n.judged && (key < 0 || n.k === key)) {
     const d = Math.abs(now - (t0 + n.beat * BEAT));
@@ -331,11 +336,11 @@ function press(el, key){
   }
   if (key < 0) drum(0, !best || best.len < 2);
   laneHit = {k: key, at: performance.now()};
-  if (!best || bd > .3) return;
+  if (!best || bd > .3 * J) return;
   best.judged = true;
   const c = () => combo >= 3 ? ` 🔥${combo}콤보` : '';
-  if (bd < .08)      { score += 100; best.res = 'p'; combo++; react('😻', '최고예요! 💯' + c()); addFx(best, '최고!', '#2f9e44'); }
-  else if (bd < .18) { score += 50;  best.res = 'g'; combo++; react('😸', '좋아요! 👍' + c());  addFx(best, '좋아!', '#1c7ed6'); }
+  if (bd < .08 * J)      { score += 100; best.res = 'p'; combo++; react('😻', '최고예요! 💯' + c()); addFx(best, '최고!', '#2f9e44'); }
+  else if (bd < .18 * J) { score += 50;  best.res = 'g'; combo++; react('😸', '좋아요! 👍' + c());  addFx(best, '좋아!', '#1c7ed6'); }
   else               {               best.res = 'm'; combo = 0; react('🙀', '조금 아쉬워요');   addFx(best, '아쉬워', '#868e96'); }
   $('score').textContent = score;
 }
@@ -393,7 +398,7 @@ function draw(){
   let left = 0;
   for (const n of notes) {
     const t = t0 + n.beat * BEAT;
-    if (!n.judged && now - t > .3) miss(n);
+    if (!n.judged && now - t > .3 * JUDGE() + LAT()) miss(n);
     if (!n.judged) left++;
     const y = HY - (t - now) / BEAT * PX, h = n.len * PX - 8;
     if (y < 0 || y - h > H) continue;
@@ -405,10 +410,14 @@ function draw(){
       cx.fillText(lab()[n.k], x + lw / 2, y - 10);
     }
   }
-  if (!left) return finish();
+  // 다음에 칠 건반을 1박 전부터 빛내기
+  const nx = notes.find(n => !n.judged), hk = nx && !isDrum() && t0 + nx.beat * BEAT - now < BEAT ? nx.k : -1;
+  whiteEls.forEach((el, i) => el.classList.toggle('hint', i === hk));
+  if (!left) { clearHints(); return finish(); }
   requestAnimationFrame(draw);
 }
 
+function clearHints(){ whiteEls.forEach(el => el.classList.remove('hint')); }
 function finish(){
   playing = false; $('pause').disabled = true;
   const pct = Math.round(score / (notes.length * 100) * 100);
