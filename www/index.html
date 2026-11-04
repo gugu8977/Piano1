@@ -31,16 +31,22 @@
   .w.on{background:#ffd27a}.b.on{background:#666}
   #hit{width:min(170px,32vh);height:min(170px,32vh);flex-shrink:0;border-radius:50%;font-size:28px;font-weight:bold;background:#ff8c42;color:#fff;border:none;margin:8px auto;display:block;touch-action:none}
   #hit.on{transform:scale(.93);background:#ff6b1a}
+  #stage{position:relative}
+  /* 설정·결과 창: 게임 화면 위에 덮어서 표시 */
+  .panel{position:absolute;inset:0 8px 8px;background:#fff7e6f2;border-radius:16px;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;overflow:auto}
+  .grid{display:grid;grid-template-columns:auto auto;gap:8px 12px;align-items:center;text-align:left;font-weight:bold}
+  #rStars{font-size:44px;animation:pop .5s}
+  @keyframes pop{0%{transform:scale(0)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
+  #face.bounce{animation:pop .3s}
+  #progress{height:5px;background:#ffe0b3;border-radius:3px;overflow:hidden;flex-shrink:0;margin-bottom:2px}
+  #progress>div{height:100%;width:0;background:#ff8c42}
 </style>
 </head>
 <body>
 <h1>🎵 동요 리듬 놀이</h1>
 <div class="row">
   <select id="song"></select>
-  <select id="speed"><option value=".75">🐢 느리게</option><option value="1" selected>🚶 보통</option><option value="1.25">🐇 빠르게</option></select>
-  <select id="mode"><option value="play">🎮 게임</option><option value="learn">🐣 기다리기</option></select>
-  <select id="inst"><option value="piano">🎹 피아노</option><option value="drum">🥁 드럼</option></select>
-  <button id="metro">🥁 박자 켬</button>
+  <button id="setBtn">⚙ 설정</button>
   <button id="listen">👂 듣기</button>
   <button id="start">▶ 시작</button>
   <button id="pause" disabled>⏸ 멈춤</button>
@@ -48,7 +54,24 @@
 </div>
 <div id="top"><div id="face">😺</div><div><div id="msg">시작을 누르고 내려오는 건반을 쳐요!</div><span>점수: <b id="score">0</b> · 🏆 최고: <b id="best">0</b>%</span></div></div>
 <div id="stage">
+  <div id="progress"><div></div></div>
   <canvas id="cv" width="720" height="260"></canvas>
+  <div id="settings" class="panel" hidden>
+    <div class="grid">
+      <span>빠르기</span><select id="speed"><option value=".75">🐢 느리게</option><option value="1" selected>🚶 보통</option><option value="1.25">🐇 빠르게</option></select>
+      <span>놀이 방법</span><select id="mode"><option value="play">🎮 박자 게임</option><option value="learn">🐣 기다려 주기</option></select>
+      <span>악기</span><select id="inst"><option value="piano">🎹 피아노</option><option value="drum">🥁 드럼</option></select>
+      <span>건반 글자</span><select id="label"><option value="ko">도레미</option><option value="en">CDE</option><option value="none">글자 없음</option></select>
+      <span>박자 소리</span><button id="metro">🥁 박자 켬</button>
+    </div>
+    <button id="setClose">✔ 닫기</button>
+  </div>
+  <div id="result" class="panel" hidden>
+    <div id="rStars"></div>
+    <div id="rText" style="font-size:20px;font-weight:bold"></div>
+    <div id="rCounts"></div>
+    <div class="row"><button id="again">🔁 다시 하기</button><button id="next">⏭ 다음 곡</button><button id="rClose">닫기</button></div>
+  </div>
   <div id="piano"></div>
   <button id="hit" hidden>톡!</button>
 </div>
@@ -70,6 +93,7 @@ const LEAD = 4;
 let BEAT = .6;
 const song = () => SONGS[$('song').value];
 const setTempo = () => BEAT = 60 / (song().bpm * +$('speed').value);
+const meter = () => song().m || 4; // 한 마디 박자 수
 const KEYS = ['C','D','E','F','G','A','B','c'];
 const NAMES = ['도','레','미','파','솔','라','시','도'];
 const FREQ = [261.63,293.66,329.63,349.23,392,440,493.88,523.25];
@@ -116,6 +140,7 @@ $('reset').onclick = () => {
   $('score').textContent = 0;
   $('pause').textContent = '⏸ 멈춤'; $('pause').disabled = true; $('listen').disabled = false;
   cx.clearRect(0, 0, cv.width, cv.height);
+  $('settings').hidden = $('result').hidden = true; $('progress').firstChild.style.width = 0;
   react('😺', '시작을 누르고 내려오는 건반을 쳐요!');
 };
 // 앱/탭이 화면에서 사라지면 자동 멈춤
@@ -199,6 +224,33 @@ $('hit').onpointerdown = e => { e.preventDefault(); press($('hit'), -1); };
 
 function flash(el){ el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 120); }
 
+// 건반 글자: 도레미 / CDE / 없음
+const LABELS = {ko: NAMES, en: ['C','D','E','F','G','A','B','C'], none: Array(8).fill('')};
+const lab = () => LABELS[$('label').value];
+const updateLabels = () => whiteEls.forEach((el, i) => el.textContent = lab()[i]);
+
+// 설정 저장/불러오기 (기기에 저장, 실패해도 무시)
+const SAVE = ['song', 'speed', 'mode', 'inst', 'label'];
+try {
+  const s = JSON.parse(localStorage.getItem('settings') || '{}');
+  SAVE.forEach(id => { if (s[id] != null && [...$(id).options].some(o => o.value === s[id])) $(id).value = s[id]; });
+  if (s.metroOn === false) $('metro').onclick();
+} catch {}
+function saveSettings(){
+  try { const s = {metroOn}; SAVE.forEach(id => s[id] = $(id).value); localStorage.setItem('settings', JSON.stringify(s)); } catch {}
+}
+SAVE.forEach(id => $(id).addEventListener('change', saveSettings));
+$('metro').addEventListener('click', saveSettings);
+$('label').addEventListener('change', updateLabels);
+
+// 설정 창 (게임 중 열면 자동 멈춤)
+$('setBtn').onclick = () => { if (playing && !paused) $('pause').onclick(); $('result').hidden = true; $('settings').hidden = false; };
+$('setClose').onclick = () => $('settings').hidden = true;
+// 결과 창 버튼
+$('again').onclick = () => $('start').onclick();
+$('next').onclick = () => { const s = $('song'); s.selectedIndex = (s.selectedIndex + 1) % s.options.length; showBest(); saveSettings(); $('start').onclick(); };
+$('rClose').onclick = () => $('result').hidden = true;
+
 $('inst').onchange = () => { $('piano').hidden = isDrum(); $('hit').hidden = !isDrum(); fit(); };
 
 addEventListener('keydown', e => {
@@ -218,6 +270,7 @@ $('listen').onclick = () => {
 
 $('start').onclick = () => {
   paused = false; $('pause').textContent = '⏸ 멈춤'; $('pause').disabled = false; $('listen').disabled = false;
+  $('settings').hidden = $('result').hidden = true;
   const a = audio();
   setTempo();
   notes = parse(song().n);
@@ -226,18 +279,22 @@ $('start').onclick = () => {
   // 곡 전체 박자 드럼 미리 예약 (멈춤 시 오디오 시계와 함께 멈춤)
   metroGain = a.createGain(); metroGain.gain.value = metroOn ? 1 : 0; metroGain.connect(a.destination);
   const last = notes[notes.length - 1], total = last.beat + last.len;
-  if (!learn()) for (let i = 0; i < total; i++) beatDrum(t0 + i * BEAT, i % 4 === 0);
+  if (!learn()) for (let i = 0; i < total; i++) beatDrum(t0 + i * BEAT, i % meter() === 0);
   score = 0; combo = 0; fx = []; offset = 0; playing = true;
   $('score').textContent = 0; react('😺', '준비~ 하나, 둘, 셋, 넷!');
   requestAnimationFrame(draw);
 };
 
-function react(face, msg){ $('face').textContent = face; $('msg').textContent = msg; }
+function react(face, msg){
+  const f = $('face'); f.textContent = face; $('msg').textContent = msg;
+  f.classList.remove('bounce'); void f.offsetWidth; f.classList.add('bounce'); // 표정 바뀔 때 통통
+}
 
 // key: 누른 흰건반 번호 (드럼은 -1 = 아무 음이나 인정)
 function press(el, key){
   if (paused) return;
   flash(el);
+  try { navigator.vibrate && navigator.vibrate(15); } catch {}
   if (key >= 0) piano(FREQ[key]);
   if (!playing) { if (key < 0) drum(0, true); return; }
   const now = clock();
@@ -282,6 +339,15 @@ function draw(){
   cx.clearRect(0, 0, W, H);
   // 세로 레인
   for (let i = 1; i < 8; i++) { cx.fillStyle = '#f2f2f2'; cx.fillRect(i * lw, 0, 1, H); }
+  // 마디선 (한 마디 = meter박)
+  const last = notes[notes.length - 1], total = last.beat + last.len, m = meter();
+  cx.fillStyle = '#ffe8cc';
+  for (let b = 0; b <= total; b += m) {
+    const y = HY - (t0 + b * BEAT - now) / BEAT * PX;
+    if (y > 0 && y < HY) cx.fillRect(0, y, W, 2);
+  }
+  // 진행 막대
+  $('progress').firstChild.style.width = Math.max(0, Math.min(100, (now - t0) / (total * BEAT) * 100)) + '%';
   // 판정선
   cx.fillStyle = '#ff8c42'; cx.fillRect(0, HY, W, 5);
   const laneX = k => isDrum() || k < 0 ? W / 2 - lw / 2 : k * lw;
@@ -314,7 +380,7 @@ function draw(){
     cx.beginPath(); cx.roundRect(x + 6, y - h, lw - 12, h, 10); cx.fill();
     if (!n.res && !isDrum()) {
       cx.fillStyle = '#fff'; cx.font = `bold ${Math.min(22, lw * .45)}px sans-serif`; cx.textAlign = 'center';
-      cx.fillText(NAMES[n.k], x + lw / 2, y - 10);
+      cx.fillText(lab()[n.k], x + lw / 2, y - 10);
     }
   }
   if (!left) return finish();
@@ -329,7 +395,22 @@ function finish(){
   if (rec) try { localStorage.setItem(bestKey(), pct); } catch {}
   showBest();
   react(pct >= 85 ? '🥳' : pct >= 60 ? '😊' : '🤗', `끝! 정확도 ${pct}% ${stars}${rec ? ' 🏆 새 기록!' : ''}`);
+  // 결과 창
+  const cnt = r => notes.filter(n => n.res === r).length;
+  $('rStars').textContent = stars;
+  $('rText').textContent = `${$('song').value} · 정확도 ${pct}%${rec ? ' 🏆 새 기록!' : ''}`;
+  $('rCounts').textContent = learn() ? `${notes.length}개 음을 모두 쳤어요! 👏`
+    : `😻 최고 ${cnt('p')}  ·  😸 좋아 ${cnt('g')}  ·  😿 놓침 ${cnt('m')}`;
+  $('result').hidden = false;
+  if (pct >= 85) fanfare();
 }
+// 잘했을 때 짧은 축하 소리 (도-미-솔-도)
+function fanfare(){
+  const t = audio().currentTime + .1;
+  [0, 2, 4, 7].forEach((k, i) => piano(FREQ[k], t + i * .12));
+}
+// 시작 시 저장된 설정 반영 (모든 정의가 끝난 뒤 실행)
+$('inst').onchange(); updateLabels(); showBest();
 </script>
 </body>
 </html>
