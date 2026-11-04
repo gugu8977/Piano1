@@ -351,7 +351,7 @@ $('rClose').onclick = () => $('result').hidden = true;
 $('inst').onchange = () => { $('piano').hidden = isDrum(); $('hit').hidden = !isDrum(); fit(); };
 
 addEventListener('keydown', e => {
-  if (e.repeat) return;
+  if (e.repeat || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return; // 글자 입력 중엔 건반 아님
   if (isDrum() && e.code === 'Space') { e.preventDefault(); press($('hit'), -1); }
   const i = KB.indexOf(e.key.toLowerCase());
   if (!isDrum() && i >= 0) press(whiteEls[i], i);
@@ -373,14 +373,16 @@ $('start').onclick = () => {
   notes = parse(song().n);
   t0 = a.currentTime + LEAD * BEAT;
   for (let i = 0; i < LEAD; i++) tick(a.currentTime + i * BEAT);
-  // 곡 전체 박자 드럼 미리 예약 (멈춤 시 오디오 시계와 함께 멈춤)
+  // 곡 전체 박자 드럼 미리 예약 (멈춤 시 오디오 시계와 함께 멈춤). 이전 판의 박자는 연결을 끊어 없앰
+  if (metroGain) metroGain.disconnect();
   metroGain = a.createGain(); metroGain.gain.value = metroOn ? 1 : 0; metroGain.connect(a.destination);
   const last = notes[notes.length - 1], total = last.beat + last.len;
   if (!learn()) for (let i = 0; i < total; i++) beatDrum(t0 + i * BEAT, i % meter() === 0);
   score = 0; combo = 0; fx = []; offset = 0; playing = true;
   $('score').textContent = 0; react('😺', '준비~ 하나, 둘, 셋, 넷!');
-  requestAnimationFrame(draw);
+  cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); // 그리기 반복은 항상 하나만
 };
+let raf = 0;
 
 function react(face, msg){
   const f = $('face'); f.textContent = face; $('msg').textContent = msg;
@@ -490,7 +492,7 @@ function draw(){
   const nx = notes.find(n => !n.judged), hk = nx && !isDrum() && t0 + nx.beat * BEAT - now < BEAT ? nx.k : -1;
   whiteEls.forEach((el, i) => el.classList.toggle('hint', i === hk));
   if (!left) { clearHints(); return finish(); }
-  requestAnimationFrame(draw);
+  raf = requestAnimationFrame(draw);
 }
 
 function clearHints(){ whiteEls.forEach(el => el.classList.remove('hint')); }
