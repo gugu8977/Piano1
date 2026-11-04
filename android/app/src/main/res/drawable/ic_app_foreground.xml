@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 앱 아이콘 전경: 피아노 건반 + 음표 (108dp, 안전영역 21~87) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- 건반 몸체 -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M32,42h44a4,4 0,0 1,4 4v28a4,4 0,0 1,-4 4h-44a4,4 0,0 1,-4 -4v-28a4,4 0,0 1,4 -4z"/>
+    <!-- 흰건반 경계 -->
+    <path android:fillColor="#E8A06A"
+        android:pathData="M40.4,42h1.2v36h-1.2z M53.4,42h1.2v36h-1.2z M66.4,42h1.2v36h-1.2z"/>
+    <!-- 검은건반 -->
+    <path android:fillColor="#333333"
+        android:pathData="M37.5,42h7v20h-7z M50.5,42h7v20h-7z"/>
+    <!-- 음표 (두 개를 잇는 8분음표) -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M44.50,36.00L44.20,37.53L43.33,38.83L42.03,39.70L40.50,40.00L38.97,39.70L37.67,38.83L36.80,37.53L36.50,36.00L36.80,34.47L37.67,33.17L38.97,32.30L40.50,32.00L42.03,32.30L43.33,33.17L44.20,34.47z M68.00,33.00L67.70,34.53L66.83,35.83L65.53,36.70L64.00,37.00L62.47,36.70L61.17,35.83L60.30,34.53L60.00,33.00L60.30,31.47L61.17,30.17L62.47,29.30L64.00,29.00L65.53,29.30L66.83,30.17L67.70,31.47z"/>
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M43.1,23.5h1.4v12.5h-1.4z M66.6,21h1.4v12h-1.4z M43.1,23.5L68,21v3L43.1,26.5z"/>
+</vector>
