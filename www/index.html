@@ -26,6 +26,7 @@
     #top>div{display:flex;gap:12px;align-items:center}
     select,button{font-size:13px;padding:3px 6px;border-radius:10px}
     .panel .grid{grid-template-columns:repeat(4,auto);gap:6px 10px}
+    .mkHelp{display:none} #mkNotes{font-size:14px}
   }
   .w{flex:1;background:#fff;border:1px solid #999;border-radius:0 0 10px 10px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:10px;font-weight:bold;font-size:16px;box-sizing:border-box}
   .b{position:absolute;top:0;width:7%;height:60%;background:#222;border-radius:0 0 6px 6px;z-index:2}
@@ -42,6 +43,11 @@
   #face.bounce{animation:pop .3s}
   .conf{position:fixed;top:-40px;font-size:28px;pointer-events:none;z-index:20;animation:fall 2s linear forwards}
   @keyframes fall{to{transform:translateY(calc(100vh + 60px)) rotate(360deg)}}
+  #maker{bottom:calc(min(170px,35vh) + 8px);gap:4px}
+  #mkName,#mkNotes{font-size:16px;padding:4px 8px;border-radius:8px;border:2px solid #f0a040;font-family:inherit}
+  #mkNotes{width:92%;max-width:640px;box-sizing:border-box}
+  /* 길게 누를 때 복사/메뉴 팝업 방지 */
+  body{-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
   #progress{height:5px;background:#ffe0b3;border-radius:3px;overflow:hidden;flex-shrink:0;margin-bottom:2px}
   #progress>div{height:100%;width:0;background:#ff8c42}
 </style>
@@ -73,12 +79,11 @@
     <div class="row"><button id="mkOpen">✏️ 내 노래 만들기</button><button id="setClose">✔ 닫기</button></div>
   </div>
   <div id="maker" class="panel" hidden>
-    <b>✏️ 내 노래 만들기</b>
-    <input id="mkName" placeholder="노래 이름" maxlength="20" style="font-size:16px;padding:4px 8px;border-radius:8px;border:2px solid #f0a040">
-    <textarea id="mkNotes" rows="3" style="width:90%;max-width:560px;font-size:16px;border-radius:8px;border:2px solid #f0a040" placeholder="예) 도 도 솔 솔 라 라 솔2 파 파 미 미 레 레 도2"></textarea>
-    <small>계이름을 띄어 쓰고, 길게 칠 음은 뒤에 박자 수(2, 3, .5)를 붙여요. 높은 도는 '높은도'</small>
+    <div class="row"><b>✏️ 내 노래</b><input id="mkName" placeholder="노래 이름" maxlength="20">
+      <button id="mkTry">👂 듣기</button><button id="mkBack">⌫ 한 음 지우기</button><button id="mkSave">💾 저장</button><button id="mkDel">🗑 삭제</button><button id="mkClose">닫기</button></div>
+    <textarea id="mkNotes" rows="2" placeholder="아래 건반을 누르거나 직접 적어요. 예) 도 도 솔 솔 라 라 솔2"></textarea>
+    <small class="mkHelp">길게 칠 음은 뒤에 박자 수(2, 3, .5)를 붙여요. 높은 도는 '높은도'</small>
     <div id="mkMsg" style="color:#e03131;font-weight:bold"></div>
-    <div class="row"><button id="mkTry">👂 들어보기</button><button id="mkSave">💾 저장</button><button id="mkDel">🗑 삭제</button><button id="mkClose">닫기</button></div>
   </div>
   <div id="result" class="panel" hidden>
     <div id="rStars"></div>
@@ -309,10 +314,12 @@ function mkRead(){
   catch (bad) { $('mkMsg').textContent = bad ? `"${bad}" 를 알 수 없어요` : '계이름을 적어 주세요'; return null; }
 }
 $('mkOpen').onclick = () => {
+  if (playing) $('reset').onclick();
   const s = song(); $('settings').hidden = true; $('maker').hidden = false; $('mkMsg').textContent = '';
   $('mkName').value = s.lv === 4 ? $('song').value : ''; $('mkNotes').value = s.lv === 4 ? toKo(s.n) : '';
 };
 $('mkClose').onclick = () => $('maker').hidden = true;
+$('mkBack').onclick = () => { const t = $('mkNotes'); t.value = t.value.trim().split(/\s+/).slice(0, -1).join(' '); };
 $('mkTry').onclick = () => {
   const n = mkRead(); if (!n) return; $('mkMsg').textContent = '';
   const a = audio(), s = a.currentTime + .2;
@@ -335,6 +342,7 @@ $('mkDel').onclick = () => {
   buildSongList(); showBest(); saveSettings(); $('maker').hidden = true;
 };
 
+addEventListener('contextmenu', e => e.preventDefault());
 // 결과 창 버튼
 $('again').onclick = () => $('start').onclick();
 $('next').onclick = () => { const s = $('song'); s.selectedIndex = (s.selectedIndex + 1) % s.options.length; showBest(); saveSettings(); $('start').onclick(); };
@@ -385,6 +393,7 @@ function press(el, key){
   flash(el);
   try { navigator.vibrate && navigator.vibrate(15); } catch {}
   if (key >= 0) piano(FREQ[key]);
+  if (!$('maker').hidden && key >= 0) { const t = $('mkNotes'); t.value = (t.value.trim() + ' ' + (key === 7 ? '높은도' : NAMES[key])).trim(); return; }
   if (!playing) { if (key < 0) drum(0, true); return; }
   const now = clock() - LAT(), J = JUDGE();
   let best = null, bd = 1e9;
