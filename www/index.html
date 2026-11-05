@@ -551,7 +551,7 @@ function drawFall(now, total){
   }
 }
 
-// ----- 악보 화면: 오선지에 음표, 주황 진행선이 왼쪽→오른쪽으로 이동. 줄 끝에 닿으면 다음 쪽으로 넘김 -----
+// ----- 악보 화면: 오선지에 음표, 주황 진행선이 왼쪽→오른쪽으로 이동. 다 친 마디 자리에 다음 마디가 미리 나타남 -----
 function drawSheet(now, total){
   const W = cv.clientWidth, H = cv.clientHeight, m = meter(), M = Math.ceil(total / m - 1e-9);
   cx.clearRect(0, 0, W, H);
@@ -561,32 +561,40 @@ function drawSheet(now, total){
   const mpp = Math.max(1, Math.floor((W - L - R) / (m * Math.max(34, g * 3.4)))); // 한 줄에 들어갈 마디 수
   const mw = (W - L - R) / mpp, per = mpp * rows;            // 마디 너비, 한 쪽의 마디 수
   const beatNow = Math.min(Math.max(0, (now - t0) / BEAT), total - 1e-6);
-  const page = Math.floor(Math.floor(beatNow / m) / per);
+  // 마디 단위로 넘김: 칸은 per개로 고정, 다 친 마디 칸에는 곧바로 다음 차례 마디가 들어옴 → 항상 앞의 마디를 미리 볼 수 있음
+  const cur = Math.floor(beatNow / m), cs = cur % per;      // 지금 마디, 그 마디의 칸
+  const slotMi = s => cur - cs + s + (s < cs ? per : 0);     // 칸 s에 보이는 마디 번호
   const staffTop = r => r * rh + (rh - 8 * g - 14) / 2 + 2 * g; // 맨 윗줄 y
-  const pos = beat => { // 박 → 화면 위치
+  const pos = beat => { // 박 → 화면 위치 (vis: 지금 화면에 보이는 마디인지)
     const mi = Math.floor(beat / m + 1e-9), i = mi % per, r = Math.floor(i / mpp);
-    return {pg: Math.floor(mi / per), r, x: L + (i % mpp) * mw + g * 1.6 + (beat - mi * m) / m * (mw - g * 2.6)};
+    return {vis: mi >= cur && mi < cur + per, r, x: L + (i % mpp) * mw + g * 1.6 + (beat - mi * m) / m * (mw - g * 2.6)};
   };
   const stepOf = k => isDrum() ? 6 : k < 8 ? k : BLACK[k - 8][0] + 1; // 0=도(아래 덧줄) … 7=높은 도
   const yOf = (r, s) => staffTop(r) + 4 * g - (s - 2) * g / 2;       // 맨 아랫줄 = 미
   // 오선, 마디선, 박자표
   cx.strokeStyle = '#555'; cx.fillStyle = '#555'; cx.lineWidth = 1.2;
   for (let r = 0; r < rows; r++) {
-    const first = page * per + r * mpp; if (first >= M) break;
-    const nm = Math.min(mpp, M - first), top = staffTop(r), end = L + nm * mw;
-    cx.beginPath();
-    for (let i = 0; i < 5; i++) { cx.moveTo(8, top + i * g); cx.lineTo(end, top + i * g); }
-    for (let c = 0; c <= nm; c++) { const x = c ? L + c * mw : 8; cx.moveTo(x, top); cx.lineTo(x, top + 4 * g); }
-    cx.stroke();
-    if (first + nm === M) cx.fillRect(end - 4, top, 4, 4 * g + 1); // 곡의 끝: 굵은 마침줄
-    cx.font = 'bold ' + g * 2 + 'px serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
-    cx.fillText(m, 10 + g * 1.1, top + g); cx.fillText(4, 10 + g * 1.1, top + 3 * g); cx.textBaseline = 'alphabetic';
-    cx.font = Math.max(9, g * .9) + 'px sans-serif'; cx.fillStyle = '#aaa'; cx.textAlign = 'left';
-    cx.fillText(first + 1, L + 2, top - g * 1.2); cx.fillStyle = '#555'; // 마디 번호
+    const top = staffTop(r);
+    for (let c = 0; c < mpp; c++) {
+      const s = r * mpp + c, mi = slotMi(s); if (mi >= M) continue;
+      const x0 = c ? L + c * mw : 8, x1 = L + (c + 1) * mw;
+      if (s < cs) { cx.fillStyle = '#fff4e6'; cx.fillRect(x0, top - g, x1 - x0, 6 * g); cx.fillStyle = '#555'; } // 새로 들어온 다음 마디
+      cx.beginPath();
+      for (let i = 0; i < 5; i++) { cx.moveTo(x0, top + i * g); cx.lineTo(x1, top + i * g); }
+      cx.moveTo(x0, top); cx.lineTo(x0, top + 4 * g); cx.moveTo(x1, top); cx.lineTo(x1, top + 4 * g);
+      cx.stroke();
+      if (mi === M - 1) cx.fillRect(x1 - 4, top, 4, 4 * g + 1); // 곡의 끝: 굵은 마침줄
+      if (c === 0) {
+        cx.font = 'bold ' + g * 2 + 'px serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+        cx.fillText(m, 10 + g * 1.1, top + g); cx.fillText(4, 10 + g * 1.1, top + 3 * g); cx.textBaseline = 'alphabetic';
+      }
+      cx.font = Math.max(9, g * .9) + 'px sans-serif'; cx.fillStyle = '#aaa'; cx.textAlign = 'left';
+      cx.fillText(mi + 1, (c ? x0 : L) + 2, top - g * 1.2); cx.fillStyle = '#555'; // 마디 번호
+    }
   }
   // 진행선
   const p = pos(beatNow);
-  if (p.pg === page) {
+  if (p.vis) {
     const top = staffTop(p.r);
     cx.fillStyle = 'rgba(255,140,66,.18)'; cx.fillRect(p.x - g * .2, top - 2 * g, g * 1.6, 8 * g);
     cx.fillStyle = '#ff8c42'; cx.fillRect(p.x - 1.5, top - 2 * g, 3, 8 * g);
@@ -597,7 +605,7 @@ function drawSheet(now, total){
   for (const n of notes) {
     for (let b = prevEnd; b < n.beat - 1e-6; ) { // 마디를 넘지 않게 나눠 그림
       const len = Math.min(n.beat - b, (Math.floor(b / m + 1e-9) + 1) * m - b), q = pos(b);
-      if (q.pg === page) {
+      if (q.vis) {
         const x = q.x + g * .6, y = yOf(q.r, 6);
         if (len >= 2) cx.fillRect(x - g * .6, y - g * .5, g * 1.2, g * .5);  // 2분 쉼표
         else { cx.beginPath(); cx.moveTo(x - g * .3, y - g * 1.4); cx.lineTo(x + g * .3, y - g * .6); cx.lineTo(x - g * .3, y + g * .1);
@@ -610,7 +618,7 @@ function drawSheet(now, total){
   // 음표
   const nx = notes.find(n => !n.judged), lab = Math.max(10, Math.min(15, g * 1.2 + 2));
   for (const n of notes) {
-    const q = pos(n.beat); if (q.pg !== page) continue;
+    const q = pos(n.beat); if (!q.vis) continue;
     const s = stepOf(n.k), x = q.x + g * .6, y = yOf(q.r, s), rx = g * .62, top = staffTop(q.r);
     if (n === nx && !auto) { cx.fillStyle = 'rgba(255,140,66,.3)'; cx.beginPath(); cx.arc(x, y, g * 1.3, 0, 7); cx.fill(); } // 다음 음
     const col = resColor(n);
@@ -643,7 +651,7 @@ function drawSheet(now, total){
   const pt = performance.now();
   fx = fx.filter(f => pt - f.at < 600);
   for (const f of fx) {
-    const q = pos(f.n.beat); if (q.pg !== page) continue;
+    const q = pos(f.n.beat); if (!q.vis) continue;
     const t = (pt - f.at) / 600;
     cx.globalAlpha = 1 - t; cx.fillStyle = f.color; cx.font = 'bold ' + Math.max(12, g * 1.3) + 'px sans-serif'; cx.textAlign = 'center';
     cx.fillText(f.txt, q.x + g * .6, staffTop(q.r) - g * 1.6 - t * g * 1.5);
