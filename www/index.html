@@ -382,6 +382,22 @@ function snapKey(e, i){
   return e.clientX > r.left - mg && e.clientX < r.right + mg && e.clientY < bottom ? n.k : i;
 }
 $('hit').onpointerdown = e => { e.preventDefault(); press($('hit'), -1); };
+// 드래그(글리산도): 누른 채 미끄러지면 지나가는 건반도 소리 나게 (손가락마다 따로)
+function glide(box, fire){
+  const last = {};
+  box.addEventListener('pointerdown', e => {
+    last[e.pointerId] = e.target.closest('.w,.b');
+    try { e.target.releasePointerCapture(e.pointerId); } catch {} // 터치는 처음 건반에 붙잡히므로 풀어 줌
+  });
+  box.addEventListener('pointermove', e => {
+    if (!(e.pointerId in last) || (e.pointerType === 'mouse' && !e.buttons)) return;
+    const t = document.elementFromPoint(e.clientX, e.clientY), el = t && t.closest('.w,.b');
+    if (el && el.parentNode === box && el !== last[e.pointerId]) { last[e.pointerId] = el; fire(el); }
+  });
+  const end = e => { delete last[e.pointerId]; };
+  for (const t of ['pointerup', 'pointercancel', 'pointerleave']) box.addEventListener(t, end);
+}
+glide($('piano'), el => { const i = keyEls.indexOf(el); if (i >= 0) press(el, i); });
 
 function flash(el){ el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 120); }
 
@@ -563,6 +579,7 @@ function buildFree(){
     fp.append(el); freeKeys.push({el, midi});
   }
 }
+glide($('freePiano'), el => { const k = freeKeys.find(k => k.el === el); if (k) freePress(el, k.midi); });
 function freePress(el, midi){
   flash(el);
   try { navigator.vibrate && navigator.vibrate(15); } catch {}
