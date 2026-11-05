@@ -38,6 +38,9 @@
   #stage{position:relative}
   /* 설정·결과 창: 게임 화면 위에 덮어서 표시 */
   .panel{position:absolute;inset:0 8px 8px;background:#fff7e6;border-radius:16px;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;overflow:auto}
+  /* 창 내용이 화면보다 길면 위쪽이 잘리지 않고 스크롤되게 (가운데 정렬 대신 위아래 auto 여백) */
+  .panel{justify-content:flex-start;padding:6px 0;box-sizing:border-box}
+  .panel>:first-child{margin-top:auto} .panel>:last-child{margin-bottom:auto}
   .grid{display:grid;grid-template-columns:auto auto;gap:8px 12px;align-items:center;text-align:left;font-weight:bold}
   #rStars{font-size:44px;animation:pop .5s}
   @keyframes pop{0%{transform:scale(0)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
