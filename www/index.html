@@ -69,7 +69,7 @@
   <canvas id="cv" width="720" height="260"></canvas>
   <div id="settings" class="panel" hidden>
     <div class="grid">
-      <span>화면</span><select id="view"><option value="fall">🎹 내려오는 음표</option><option value="sheet">🎼 악보</option></select>
+      <span>화면</span><select id="view"><option value="fall">🎹 내려오는 음표</option><option value="sheet">🎼 악보 (진행선 이동)</option><option value="scroll">🎼 악보 (흐르는 악보)</option></select>
       <span>빠르기</span><select id="speed"><option value=".75">🐢 느리게</option><option value="1" selected>🚶 보통</option><option value="1.25">🐇 빠르게</option></select>
       <span>놀이 방법</span><select id="mode"><option value="play">🎮 박자 게임</option><option value="learn">🐣 기다려 주기</option></select>
       <span>악기</span><select id="inst"><option value="piano">🎹 피아노</option><option value="xylo">🔔 실로폰</option><option value="box">🎶 오르골</option><option value="drum">🥁 드럼</option></select>
@@ -471,7 +471,7 @@ function fit(){
 }
 addEventListener('resize', fit); fit();
 
-const sheet = () => $('view').value === 'sheet';
+const sheet = () => $('view').value !== 'fall';
 function draw(){
   if (!playing) return;
   const now = clock(), last = notes[notes.length - 1], total = last.beat + last.len;
@@ -555,7 +555,8 @@ function drawFall(now, total){
 function drawSheet(now, total){
   const W = cv.clientWidth, H = cv.clientHeight, m = meter(), M = Math.ceil(total / m - 1e-9);
   cx.clearRect(0, 0, W, H);
-  const rows = H >= 230 ? 2 : 1, rh = H / rows;              // 화면이 높으면 두 줄
+  const scroll = $('view').value === 'scroll';                // 흐르는 악보: 진행선 고정, 악보가 왼쪽으로 흐름
+  const rows = H >= 230 && !scroll ? 2 : 1, rh = H / rows;   // 화면이 높으면 두 줄
   const g = Math.max(6, Math.min(14, (rh - 20) / 9));        // 오선 줄 간격
   const L = 12 + g * 2.4, R = 10;                            // 왼쪽: 박자표 자리
   const mpp = Math.max(1, Math.floor((W - L - R) / (m * Math.max(34, g * 3.4)))); // 한 줄에 들어갈 마디 수
@@ -565,7 +566,9 @@ function drawSheet(now, total){
   const cur = Math.floor(beatNow / m), cs = cur % per;      // 지금 마디, 그 마디의 칸
   const slotMi = s => cur - cs + s + (s < cs ? per : 0);     // 칸 s에 보이는 마디 번호
   const staffTop = r => r * rh + (rh - 8 * g - 14) / 2 + 2 * g; // 맨 윗줄 y
+  const PB = Math.max(60, g * 4.6), HX = L + (W - L) * .22;  // 흐르는 악보: 1박 너비, 진행선 위치
   const pos = beat => { // 박 → 화면 위치 (vis: 지금 화면에 보이는 마디인지)
+    if (scroll) { const x = HX + (beat - beatNow) * PB; return {vis: x > L - g * 2 && x < W + g, r: 0, x}; }
     const mi = Math.floor(beat / m + 1e-9), i = mi % per, r = Math.floor(i / mpp);
     return {vis: mi >= cur && mi < cur + per, r, x: L + (i % mpp) * mw + g * 1.6 + (beat - mi * m) / m * (mw - g * 2.6)};
   };
@@ -573,7 +576,25 @@ function drawSheet(now, total){
   const yOf = (r, s) => staffTop(r) + 4 * g - (s - 2) * g / 2;       // 맨 아랫줄 = 미
   // 오선, 마디선, 박자표
   cx.strokeStyle = '#555'; cx.fillStyle = '#555'; cx.lineWidth = 1.2;
-  for (let r = 0; r < rows; r++) {
+  const barX = mi => HX + (mi * m - beatNow) * PB - g * .9;   // 흐르는 악보의 마디선 위치
+  const staffHead = top => { // 흐르는 악보: 왼쪽 박자표 자리 (흘러간 음표를 가림)
+    cx.fillStyle = '#fff'; cx.fillRect(0, 0, L, H); cx.fillStyle = cx.strokeStyle = '#555'; cx.lineWidth = 1.2;
+    cx.beginPath(); for (let i = 0; i < 5; i++) { cx.moveTo(8, top + i * g); cx.lineTo(L, top + i * g); } cx.moveTo(8, top); cx.lineTo(8, top + 4 * g); cx.stroke();
+    cx.font = 'bold ' + g * 2 + 'px serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillText(m, 10 + g * 1.1, top + g); cx.fillText(4, 10 + g * 1.1, top + 3 * g); cx.textBaseline = 'alphabetic';
+  };
+  if (scroll) {
+    const top = staffTop(0), end = Math.min(W, barX(M));
+    cx.beginPath();
+    for (let i = 0; i < 5; i++) { cx.moveTo(L, top + i * g); cx.lineTo(end, top + i * g); }
+    for (let mi = 0; mi <= M; mi++) { const x = barX(mi); if (x > L && x < W) { cx.moveTo(x, top); cx.lineTo(x, top + 4 * g); } }
+    cx.stroke();
+    if (barX(M) < W) cx.fillRect(barX(M) - 4, top, 4, 4 * g + 1); // 곡의 끝
+    cx.font = Math.max(9, g * .9) + 'px sans-serif'; cx.fillStyle = '#aaa'; cx.textAlign = 'left';
+    for (let mi = 0; mi < M; mi++) { const x = barX(mi); if (x > L - g * 3 && x < W) cx.fillText(mi + 1, x + 3, top - g * 1.2); }
+    cx.fillStyle = '#555';
+  }
+  for (let r = 0; r < rows && !scroll; r++) {
     const top = staffTop(r);
     for (let c = 0; c < mpp; c++) {
       const s = r * mpp + c, mi = slotMi(s); if (mi >= M) continue;
@@ -647,6 +668,7 @@ function drawSheet(now, total){
       cx.fillText(labelOf(n.k), x, top + 6 * g + lab * .4);
     }
   }
+  if (scroll) staffHead(staffTop(0));
   // 판정 글자 (오선 위에서 떠오르며 사라짐)
   const pt = performance.now();
   fx = fx.filter(f => pt - f.at < 600);
