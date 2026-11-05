@@ -51,6 +51,17 @@
   body{-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
   #progress{height:5px;background:#ffe0b3;border-radius:3px;overflow:hidden;flex-shrink:0;margin-bottom:2px}
   #progress>div{height:100%;width:0;background:#ff8c42}
+  /* 틀린 건반을 눌렀을 때 맞는 건반 깜빡임 */
+  .w.want,.b.want{animation:want .18s 4 alternate}
+  @keyframes want{to{background:#ff8c42;transform:translateY(3px)}}
+  /* 스티커 달력 */
+  #calGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;width:min(440px,94%)}
+  #calGrid>div{background:#fff;border-radius:8px;min-height:34px;font-size:11px;color:#888;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  #calGrid>div.e{background:none}
+  #calGrid>div.today{outline:2px solid #ff8c42}
+  #calGrid b{font-size:18px;line-height:1}
+  #calGrid i{font-style:normal;font-size:12px;font-weight:bold}
+  @media (max-height:500px){ #calGrid>div{min-height:22px} #calGrid b{font-size:14px} #cal{gap:3px} }
 </style>
 </head>
 <body>
@@ -58,6 +69,7 @@
 <div class="row">
   <select id="song"></select>
   <button id="setBtn">⚙ 설정</button>
+  <button id="calBtn">🗓 스티커</button>
   <button id="listen">👀 보고 듣기</button>
   <button id="start">▶ 시작</button>
   <button id="pause" disabled>⏸ 멈춤</button>
@@ -77,6 +89,9 @@
       <span>판정</span><select id="judge"><option value="1.5">😊 너그럽게</option><option value="1" selected>🙂 보통</option><option value="0.7">😎 정확하게</option></select>
       <span>타이밍 보정</span><select id="lat"><option value="0" selected>0ms</option><option value="0.05">+50ms</option><option value="0.1">+100ms</option><option value="0.15">+150ms</option><option value="0.25">+250ms (블루투스)</option></select>
       <span>박자 소리</span><button id="metro">🥁 박자 켬</button>
+      <span>연습 구간</span><span><select id="rgA"></select> ~ <select id="rgB"></select> 마디</span>
+      <span>구간 반복</span><button id="loop">🔁 반복 끔</button>
+      <span>곡 잠금</span><button id="lockBtn">🔒 잠금 켬</button>
     </div>
     <div class="row"><button id="mkOpen">✏️ 내 노래 만들기</button><button id="setClose">✔ 닫기</button></div>
   </div>
@@ -91,7 +106,13 @@
     <div id="rStars"></div>
     <div id="rText" style="font-size:20px;font-weight:bold"></div>
     <div id="rCounts"></div>
-    <div class="row"><button id="again">🔁 다시 하기</button><button id="next">⏭ 다음 곡</button><button id="rClose">닫기</button></div>
+    <div id="rSticker" style="font-weight:bold;color:#e8590c"></div>
+    <div class="row"><button id="again">🔁 다시 하기</button><button id="rCal">🗓 스티커판</button><button id="next">⏭ 다음 곡</button><button id="rClose">닫기</button></div>
+  </div>
+  <div id="cal" class="panel" hidden>
+    <div class="row" style="align-items:center"><button id="calPrev">◀</button><b id="calTitle"></b><button id="calNext">▶</button><button id="calClose">닫기</button></div>
+    <div id="calGrid"></div>
+    <div id="calInfo" style="font-weight:bold"></div>
   </div>
   <div id="piano"></div>
   <button id="hit" hidden>톡!</button>
@@ -117,7 +138,7 @@ const SONGS = {
 const LEAD = 4;
 let BEAT = .6;
 const song = () => SONGS[$('song').value];
-const setTempo = () => BEAT = 60 / (song().bpm * +$('speed').value);
+const setTempo = () => BEAT = 60 / (song().bpm * +$('speed').value * boost); // boost: 구간 반복에서 점점 빠르게
 const JUDGE = () => +$('judge').value, LAT = () => +$('lat').value;
 const meter = () => song().m || 4; // 한 마디 박자 수
 const KEYS = ['C','D','E','F','G','A','B','c'];
@@ -158,8 +179,21 @@ const starsOf = p => p >= 85 ? '⭐⭐⭐' : p >= 60 ? '⭐⭐' : p > 0 ? '⭐' 
 function songStars(){
   for (const o of $('song').options) {
     let p = 0; try { p = +localStorage.getItem(`best:${$('mode').value}:${o.value}`) || 0; } catch {}
-    o.textContent = o.value + (p ? ' ' + starsOf(p) : '');
+    o.disabled = !unlocked(o.value);
+    o.textContent = (o.disabled ? '🔒 ' : '') + o.value + (p ? ' ' + starsOf(p) : '');
   }
+  if ($('song').selectedOptions[0] && $('song').selectedOptions[0].disabled) { // 잠긴 곡이 골라져 있으면 열린 곡으로
+    const o = [...$('song').options].find(o => !o.disabled); if (o) $('song').value = o.value;
+  }
+}
+// ---------- 곡 잠금: 쉬움 곡과 내 노래는 항상 열림, 나머지는 바로 앞 곡이 별 3개(85% 이상)면 열림 ----------
+var lockOn = true;
+const bestAny = name => { let p = 0; try { for (const md of ['play', 'learn']) p = Math.max(p, +localStorage.getItem(`best:${md}:${name}`) || 0); } catch {} return p; };
+const songOrder = () => Object.keys(SONGS).filter(n => SONGS[n].lv < 4);
+function unlocked(name){
+  if (!lockOn || !SONGS[name] || SONGS[name].lv === 1 || SONGS[name].lv === 4) return true;
+  const list = songOrder(), i = list.indexOf(name);
+  return i <= 0 || bestAny(list[i - 1]) >= 85 || bestAny(name) > 0;
 }
 
 let ac, notes = [], t0 = 0, playing = false, paused = false, score = 0, combo = 0;
@@ -178,7 +212,7 @@ function clock(){
 // 최고 기록 (곡별, 기기에 저장)
 const bestKey = () => `best:${$('mode').value}:${$('song').value}`;
 const getBest = () => { try { return +localStorage.getItem(bestKey()) || 0; } catch { return 0; } };
-const showBest = () => { $('best').textContent = getBest(); songStars(); };
+const showBest = () => { songStars(); $('best').textContent = getBest(); buildRange(); };
 $('song').onchange = $('mode').onchange = showBest; showBest();
 const isDrum = () => $('inst').value === 'drum';
 function audio(){
@@ -201,6 +235,7 @@ $('pause').onclick = () => {
 // 완전 정지 + 리셋: 오디오를 닫아 예약된 소리(준비 박자, 듣기)까지 모두 끊음
 $('reset').onclick = () => {
   if (ac) { ac.close(); ac = null; }
+  clearTimeout(loopTimer); $('cal').hidden = true;
   playing = paused = auto = false; score = 0; combo = 0; notes = []; fx = [];
   $('score').textContent = 0;
   $('pause').textContent = '⏸ 멈춤'; $('pause').disabled = true; $('listen').disabled = false;
@@ -312,14 +347,93 @@ try {
   if (s.metroOn === false) $('metro').onclick();
 } catch {}
 function saveSettings(){
-  try { const s = {metroOn}; SAVE.forEach(id => s[id] = $(id).value); localStorage.setItem('settings', JSON.stringify(s)); } catch {}
+  try { const s = {metroOn, lockOn}; SAVE.forEach(id => s[id] = $(id).value); localStorage.setItem('settings', JSON.stringify(s)); } catch {}
 }
 SAVE.forEach(id => $(id).addEventListener('change', saveSettings));
 $('metro').addEventListener('click', saveSettings);
 $('label').addEventListener('change', updateLabels);
 
+// 곡 잠금 켬/끔 (부모님용)
+$('lockBtn').onclick = () => {
+  lockOn = !lockOn; $('lockBtn').textContent = lockOn ? '🔒 잠금 켬' : '🔓 잠금 끔';
+  songStars(); saveSettings();
+};
+try { if (JSON.parse(localStorage.getItem('settings') || '{}').lockOn === false) $('lockBtn').onclick(); } catch {}
+
+// ---------- 구간 반복 연습: 고른 마디만 치고, 반복 켬이면 계속 다시. 잘 치면(85% 이상) 조금씩 빠르게 ----------
+var loopOn = false, boost = 1, loopTimer = 0, rangeKey = '', mOff = 0;
+function measures(){ const ns = parse(song().n), l = ns[ns.length - 1]; return Math.ceil((l.beat + l.len) / meter() - 1e-9); }
+function buildRange(){ // 곡이 바뀌면 구간을 곡 전체로
+  if (rangeKey === $('song').value + song().n) return;
+  rangeKey = $('song').value + song().n;
+  const M = measures();
+  for (const id of ['rgA', 'rgB']) { $(id).innerHTML = ''; for (let i = 1; i <= M; i++) $(id).append(new Option(i, i)); }
+  $('rgB').value = M;
+}
+const fullRange = () => +$('rgA').value === 1 && +$('rgB').value === measures();
+$('rgA').onchange = () => { if (+$('rgB').value < +$('rgA').value) $('rgB').value = $('rgA').value; };
+$('rgB').onchange = () => { if (+$('rgA').value > +$('rgB').value) $('rgA').value = $('rgB').value; };
+$('loop').onclick = () => { loopOn = !loopOn; $('loop').textContent = loopOn ? '🔁 반복 켬' : '🔁 반복 끔'; };
+
+// ---------- 틀린 건반 알려 주기: 다음에 칠 건반을 깜빡이고 이름을 알려 줌 ----------
+var wrong = 0;
+const nameOf = k => k === 7 ? '높은 도' : k < 8 ? NAMES[k] : BNAMES.ko[k - 8];
+function wrongKey(key, now){
+  const n = notes.find(n => !n.judged);
+  if (!n || n.k === key || t0 + n.beat * BEAT - now > BEAT * 1.5) return; // 아직 먼 음이면 그냥 둠
+  wrong++;
+  react('🤔', `${nameOf(key)} 말고 ${nameOf(n.k)}예요!`);
+  const el = keyEls[n.k]; el.classList.remove('want'); void el.offsetWidth; el.classList.add('want');
+  setTimeout(() => el.classList.remove('want'), 800);
+}
+
+// ---------- 스티커 달력: 하루에 한 곡이라도 끝까지 치면 그날 스티커 ----------
+const STK = ['🐶','🐱','🐰','🦊','🐻','🐼','🐯','🦁','🐸','🐵','🐧','🐥'];
+const dayKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const loadDays = () => { try { return JSON.parse(localStorage.getItem('days') || '{}'); } catch { return {}; } };
+const stickerOf = d => STK[(d.getDate() * 7 + d.getMonth() * 3) % STK.length];
+function addSticker(){ // 오늘 처음이면 true
+  const days = loadDays(), k = dayKey(new Date()), first = !days[k];
+  days[k] = (days[k] || 0) + 1;
+  try { localStorage.setItem('days', JSON.stringify(days)); } catch {}
+  return first;
+}
+function streak(){ // 며칠 연속 연습했는지 (오늘 아직 안 했으면 어제까지)
+  const days = loadDays(), d = new Date(); let n = 0;
+  if (!days[dayKey(d)]) d.setDate(d.getDate() - 1);
+  while (days[dayKey(d)]) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+var calMonth = new Date();
+function drawCal(){
+  const days = loadDays(), y = calMonth.getFullYear(), mo = calMonth.getMonth(), today = dayKey(new Date());
+  $('calTitle').textContent = `${y}년 ${mo + 1}월`;
+  const g = $('calGrid'); g.innerHTML = [...'일월화수목금토'].map(c => `<i>${c}</i>`).join('');
+  for (let i = new Date(y, mo, 1).getDay(); i > 0; i--) { const e = document.createElement('div'); e.className = 'e'; g.append(e); }
+  let cnt = 0;
+  for (let d = 1; d <= new Date(y, mo + 1, 0).getDate(); d++) {
+    const dt = new Date(y, mo, d), k = dayKey(dt), c = document.createElement('div');
+    if (days[k]) cnt++;
+    c.innerHTML = `${d}<b>${days[k] ? stickerOf(dt) : ''}</b>`;
+    if (k === today) c.className = 'today';
+    g.append(c);
+  }
+  const list = songOrder(), n3 = list.filter(n => bestAny(n) >= 85).length;
+  $('calInfo').textContent = `이번 달 스티커 ${cnt}개 · 🔥 ${streak()}일 연속 · ⭐⭐⭐ 곡 ${n3}/${list.length}`;
+}
+$('calBtn').onclick = () => {
+  if (playing && !paused) $('pause').onclick();
+  clearTimeout(loopTimer);
+  $('settings').hidden = $('result').hidden = $('maker').hidden = true;
+  calMonth = new Date(); calMonth.setDate(1); drawCal(); $('cal').hidden = false;
+};
+$('calPrev').onclick = () => { calMonth.setMonth(calMonth.getMonth() - 1); drawCal(); };
+$('calNext').onclick = () => { calMonth.setMonth(calMonth.getMonth() + 1); drawCal(); };
+$('calClose').onclick = () => $('cal').hidden = true;
+$('rCal').onclick = () => $('calBtn').onclick();
+
 // 설정 창 (게임 중 열면 자동 멈춤)
-$('setBtn').onclick = () => { if (playing && !paused) $('pause').onclick(); $('result').hidden = true; $('settings').hidden = false; };
+$('setBtn').onclick = () => { if (playing && !paused) $('pause').onclick(); clearTimeout(loopTimer); $('result').hidden = $('cal').hidden = true; $('settings').hidden = false; };
 $('setClose').onclick = () => $('settings').hidden = true;
 // ---------- 내 노래 만들기 ----------
 const KO = {'도':'C','레':'D','미':'E','파':'F','솔':'G','라':'A','시':'B','높은도':'c','쉼':'R'};
@@ -374,14 +488,17 @@ $('mkDel').onclick = () => {
 
 addEventListener('contextmenu', e => e.preventDefault());
 window.handleBack = () => {
-  for (const id of ['maker', 'settings', 'result']) if (!$(id).hidden) { $(id).hidden = true; return true; }
+  for (const id of ['maker', 'settings', 'result', 'cal']) if (!$(id).hidden) { $(id).hidden = true; return true; }
   if (playing && !paused) { $('pause').onclick(); return true; }
   if (playing) { $('reset').onclick(); return true; }
   return false;
 };
 // 결과 창 버튼
 $('again').onclick = () => $('start').onclick();
-$('next').onclick = () => { const s = $('song'); s.selectedIndex = (s.selectedIndex + 1) % s.options.length; showBest(); saveSettings(); $('start').onclick(); };
+$('next').onclick = () => { // 잠긴 곡은 건너뜀
+  const s = $('song'), o = s.options; let i = s.selectedIndex;
+  do i = (i + 1) % o.length; while (o[i].disabled && i !== s.selectedIndex);
+  s.selectedIndex = i; showBest(); saveSettings(); $('start').onclick(); };
 $('rClose').onclick = () => $('result').hidden = true;
 
 $('inst').onchange = () => { $('piano').hidden = isDrum(); $('hit').hidden = !isDrum(); fit(); };
@@ -396,15 +513,21 @@ addEventListener('keydown', e => {
 
 // ---------- 게임 ----------
 $('listen').onclick = () => begin(true);
-$('start').onclick = () => begin(false);
+$('start').onclick = () => { boost = 1; begin(false); };
 // 게임 시작. isAuto=true면 시범 연주(정해진 시간에 저절로 치고, 점수·기록 없음)
 function begin(isAuto){
   auto = isAuto;
   paused = false; $('pause').textContent = '⏸ 멈춤'; $('pause').disabled = false; $('listen').disabled = false;
-  $('settings').hidden = $('result').hidden = $('maker').hidden = true;
+  $('settings').hidden = $('result').hidden = $('maker').hidden = $('cal').hidden = true;
+  clearTimeout(loopTimer); wrong = 0;
   const a = audio();
   setTempo();
-  notes = parse(song().n);
+  notes = parse(song().n); mOff = 0;
+  if (!fullRange()) { // 연습 구간만 (첫 마디가 0박이 되게 당김)
+    const m = meter(), s = (+$('rgA').value - 1) * m, e = +$('rgB').value * m;
+    const part = notes.filter(n => n.beat >= s && n.beat < e);
+    if (part.length) { notes = part; notes.forEach(n => n.beat -= s); mOff = +$('rgA').value - 1; }
+  }
   t0 = a.currentTime + LEAD * BEAT;
   for (let i = 0; i < LEAD; i++) tick(a.currentTime + i * BEAT);
   // 곡 전체 박자 드럼 미리 예약 (멈춤 시 오디오 시계와 함께 멈춤). 이전 판의 박자는 연결을 끊어 없앰
@@ -448,7 +571,7 @@ function press(el, key){
   }
   if (key < 0) drum(0, !best || best.len < 2);
   laneHit = {k: key, at: performance.now()};
-  if (!best || bd > .3 * J) return;
+  if (!best || bd > .3 * J) { if (key >= 0) wrongKey(key, now); return; }
   best.judged = true;
   const c = () => combo >= 3 ? ` 🔥${combo}콤보` : '';
   if (bd < .08 * J)      { score += 100; best.res = 'p'; combo++; react('😻', '최고예요! 💯' + c()); addFx(best, '최고!', '#2f9e44'); }
@@ -591,7 +714,7 @@ function drawSheet(now, total){
     cx.stroke();
     if (barX(M) < W) cx.fillRect(barX(M) - 4, top, 4, 4 * g + 1); // 곡의 끝
     cx.font = Math.max(9, g * .9) + 'px sans-serif'; cx.fillStyle = '#aaa'; cx.textAlign = 'left';
-    for (let mi = 0; mi < M; mi++) { const x = barX(mi); if (x > L - g * 3 && x < W) cx.fillText(mi + 1, x + 3, top - g * 1.2); }
+    for (let mi = 0; mi < M; mi++) { const x = barX(mi); if (x > L - g * 3 && x < W) cx.fillText(mi + 1 + mOff, x + 3, top - g * 1.2); }
     cx.fillStyle = '#555';
   }
   for (let r = 0; r < rows && !scroll; r++) {
@@ -610,7 +733,7 @@ function drawSheet(now, total){
         cx.fillText(m, 10 + g * 1.1, top + g); cx.fillText(4, 10 + g * 1.1, top + 3 * g); cx.textBaseline = 'alphabetic';
       }
       cx.font = Math.max(9, g * .9) + 'px sans-serif'; cx.fillStyle = '#aaa'; cx.textAlign = 'left';
-      cx.fillText(mi + 1, (c ? x0 : L) + 2, top - g * 1.2); cx.fillStyle = '#555'; // 마디 번호
+      cx.fillText(mi + 1 + mOff, (c ? x0 : L) + 2, top - g * 1.2); cx.fillStyle = '#555'; // 마디 번호
     }
   }
   // 진행선
@@ -685,19 +808,36 @@ function drawSheet(now, total){
 function clearHints(){ keyEls.forEach(el => el.classList.remove('hint')); }
 function finish(){
   playing = false; $('pause').disabled = true;
-  if (auto) { auto = false; return react('😺', '이제 직접 쳐 볼까요? ▶ 시작!'); }
+  if (auto) {
+    auto = false;
+    if (loopOn) { loopTimer = setTimeout(() => begin(true), 1200); return react('👀', '한 번 더 들어요~'); }
+    return react('😺', '이제 직접 쳐 볼까요? ▶ 시작!');
+  }
   const pct = Math.round(score / (notes.length * 100) * 100);
   const stars = pct >= 85 ? '⭐⭐⭐' : pct >= 60 ? '⭐⭐' : '⭐';
-  const rec = pct > getBest();
+  const sticker = addSticker() ? stickerOf(new Date()) : ''; // 오늘 첫 연습이면 스티커
+  const part = !fullRange(), range = part ? ` (${$('rgA').value}~${$('rgB').value}마디)` : '';
+  // 구간 반복: 결과 창 없이 잠깐 뒤 다시 시작. 잘 쳤으면 10%씩 빠르게 (최대 1.5배)
+  if (loopOn) {
+    if (pct >= 85 && boost < 1.5) boost = Math.min(1.5, Math.round(boost * 110) / 100);
+    react(pct >= 85 ? '🥳' : '🤗', `${pct}% ${pct >= 85 ? '잘했어요! 조금 더 빠르게 🐇' : '한 번 더 해 봐요!'}${boost > 1 ? ` (×${boost})` : ''}${sticker ? ' 🎁' + sticker : ''}`);
+    loopTimer = setTimeout(() => begin(false), 1800); return;
+  }
+  // 최고 기록은 곡 전체를 쳤을 때만. 기록으로 다음 곡이 열렸는지 확인
+  const list = songOrder(), nextName = list[list.indexOf($('song').value) + 1];
+  const wasLocked = nextName && !unlocked(nextName);
+  const rec = !part && pct > getBest();
   if (rec) try { localStorage.setItem(bestKey(), pct); } catch {}
   showBest();
-  react(pct >= 85 ? '🥳' : pct >= 60 ? '😊' : '🤗', `끝! 정확도 ${pct}% ${stars}${rec ? ' 🏆 새 기록!' : ''}`);
+  const opened = wasLocked && unlocked(nextName) ? ` 🔓 "${nextName}" 열렸어요!` : '';
+  react(pct >= 85 ? '🥳' : pct >= 60 ? '😊' : '🤗', `끝! 정확도 ${pct}% ${stars}${rec ? ' 🏆 새 기록!' : ''}${opened}`);
   // 결과 창
   const cnt = r => notes.filter(n => n.res === r).length;
   $('rStars').textContent = stars;
-  $('rText').textContent = `${$('song').value} · 정확도 ${pct}%${rec ? ' 🏆 새 기록!' : ''}`;
-  $('rCounts').textContent = learn() ? `${notes.length}개 음을 모두 쳤어요! 👏`
-    : `😻 최고 ${cnt('p')}  ·  😸 좋아 ${cnt('g')}  ·  😿 놓침 ${cnt('m')}`;
+  $('rText').textContent = `${$('song').value}${range} · 정확도 ${pct}%${rec ? ' 🏆 새 기록!' : ''}`;
+  $('rCounts').textContent = (learn() ? `${notes.length}개 음을 모두 쳤어요! 👏`
+    : `😻 최고 ${cnt('p')}  ·  😸 좋아 ${cnt('g')}  ·  😿 놓침 ${cnt('m')}`) + (wrong ? `  ·  🤔 틀린 건반 ${wrong}` : '');
+  $('rSticker').textContent = (sticker ? `🎁 오늘의 스티커 ${sticker} 받았어요! (🔥 ${streak()}일 연속)` : '') + opened;
   $('result').hidden = false;
   if (pct >= 85) { fanfare(); confetti(); }
 }
