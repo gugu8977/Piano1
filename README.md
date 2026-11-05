@@ -49,7 +49,8 @@ capacitor.config.json
 ## 실행
 
 - **PC 브라우저**: `www/index.html`을 열면 됩니다.
-- **안드로이드**: 필요 도구는 Node.js, JDK 21, Android SDK(`ANDROID_HOME`)입니다.
+- **안드로이드 APK 받기**: 폰에서 [download/piano1.apk](https://github.com/gugu8977/Piano1/raw/main/download/piano1.apk)를 받아 설치합니다 (처음 한 번 "출처를 알 수 없는 앱" 허용 필요).
+- **안드로이드 직접 빌드**: 필요 도구는 Node.js, JDK 21, Android SDK(`ANDROID_HOME`)입니다.
 
 ```bash
 npm install
