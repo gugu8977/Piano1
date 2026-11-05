@@ -54,6 +54,28 @@
   body{-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
   #progress{height:5px;background:#ffe0b3;border-radius:3px;overflow:hidden;flex-shrink:0;margin-bottom:2px}
   #progress>div{height:100%;width:0;background:#ff8c42}
+  /* 메인 메뉴 */
+  #home{position:fixed;inset:0;z-index:30;background:#fff7e6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2vh;overflow:auto;padding:8px;box-sizing:border-box}
+  #home h2{margin:0;font-size:min(32px,7vh)}
+  .menu{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;max-width:960px}
+  .menu button{width:min(170px,18vw);height:min(170px,38vh);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:min(20px,5vh);font-weight:bold;border-width:3px;border-radius:20px;box-shadow:0 3px 0 #f0a040}
+  .menu button:active{transform:translateY(3px);box-shadow:none}
+  .menu b{font-size:min(52px,12vh);line-height:1.1}
+  .menu small{font-size:min(13px,3.2vh);color:#888;font-weight:normal}
+  /* 위쪽 막대: 🏠 왼쪽, 🗓·설정 오른쪽 */
+  #bar{justify-content:flex-start;align-items:center;padding:0 6px}
+  #bar .right{margin-left:auto;display:flex;gap:6px}
+  #modeName{font-weight:bold}
+  /* 화면별로 보이는 것: 게임(박자 게임·기다려 주기) / 자유 연습 */
+  body.free .gameOnly, body.game .freeOnly{display:none!important}
+  /* 설정·스티커 창은 어느 화면에서든 전체를 덮음 (메인 메뉴에서도 열 수 있게) */
+  #settings,#cal{position:fixed;inset:0;z-index:40;border-radius:0}
+  /* 자유 연습 건반 (옥타브 수에 따라 자동 생성) */
+  #freePiano{position:relative;display:flex;height:min(190px,40vh);flex-shrink:0;touch-action:none}
+  #freePiano .w{font-size:min(14px,2.4vw);padding-bottom:6px;border-radius:0 0 6px 6px}
+  #freePiano .w small{display:block;font-size:9px;color:#aaa}
+  #freePiano .w.mid{background:linear-gradient(#fff 60%,#ffe8cc)}
+  #freePiano .b{border-radius:0 0 4px 4px}
   /* 틀린 건반을 눌렀을 때 맞는 건반 깜빡임 */
   .w.want,.b.want{animation:want .18s 4 alternate}
   @keyframes want{to{background:#ff8c42;transform:translateY(3px)}}
@@ -67,26 +89,39 @@
   @media (max-height:500px){ #calGrid>div{min-height:22px} #calGrid b{font-size:14px} #cal{gap:3px} }
 </style>
 </head>
-<body>
-<h1>🎵 동요 리듬 놀이</h1>
-<div class="row">
-  <select id="song"></select>
-  <button id="setBtn">⚙ 설정</button>
-  <button id="calBtn">🗓 스티커</button>
-  <button id="listen">👀 보고 듣기</button>
-  <button id="start">▶ 시작</button>
-  <button id="pause" disabled>⏸ 멈춤</button>
-  <button id="reset">⏹ 처음</button>
+<body class="game">
+<!-- 메인 메뉴 -->
+<div id="home">
+  <h2>🎵 동요 리듬 놀이</h2>
+  <div class="menu">
+    <button data-go="play"><b>🎮</b>박자 게임<small>박자에 맞춰 쳐요</small></button>
+    <button data-go="learn"><b>🐣</b>기다려 주기<small>맞는 건반까지 기다려요</small></button>
+    <button data-go="free"><b>🎹</b>자유 연습<small>마음대로 연주해요</small></button>
+    <button data-go="cal"><b>🗓</b>스티커<small>연습 달력</small></button>
+    <button data-go="set"><b>⚙</b>설정<small>소리·화면·빠르기</small></button>
+  </div>
 </div>
-<div id="top"><div id="face">😺</div><div><div id="msg">시작을 누르고 내려오는 건반을 쳐요!</div><span>점수: <b id="score">0</b> · 🏆 최고: <b id="best">0</b>%</span></div></div>
+<div class="row" id="bar">
+  <button id="homeBtn" title="메인 메뉴">🏠</button>
+  <span id="modeName"></span>
+  <select id="song" class="gameOnly"></select>
+  <button id="listen" class="gameOnly">👀 보고 듣기</button>
+  <button id="start" class="gameOnly">▶ 시작</button>
+  <button id="pause" class="gameOnly" disabled>⏸ 멈춤</button>
+  <button id="reset" class="gameOnly">⏹ 처음</button>
+  <span class="freeOnly"><select id="oct"><option value="1">1옥타브</option><option value="2" selected>2옥타브</option><option value="3">3옥타브</option><option value="4">4옥타브</option></select>
+    <select id="octStart"><option value="2">낮은 음부터</option><option value="3">조금 낮은 음부터</option><option value="4" selected>가운데 도부터</option><option value="5">높은 음부터</option></select></span>
+  <span class="right"><button id="calBtn" title="스티커">🗓</button><button id="setBtn" title="설정">⚙ 설정</button></span>
+</div>
+<div id="top"><div id="face">😺</div><div><div id="msg">시작을 누르고 내려오는 건반을 쳐요!</div><span class="gameOnly">점수: <b id="score">0</b> · 🏆 최고: <b id="best">0</b>%</span></div></div>
 <div id="stage">
-  <div id="progress"><div></div></div>
+  <div id="progress" class="gameOnly"><div></div></div>
   <canvas id="cv" width="720" height="260"></canvas>
   <div id="settings" class="panel" hidden>
     <div class="grid">
       <span>화면</span><select id="view"><option value="fall">🎹 내려오는 음표</option><option value="sheet">🎼 악보 (진행선 이동)</option><option value="scroll">🎼 악보 (흐르는 악보)</option></select>
       <span>빠르기</span><select id="speed"><option value=".75">🐢 느리게</option><option value="1" selected>🚶 보통</option><option value="1.25">🐇 빠르게</option></select>
-      <span>놀이 방법</span><select id="mode"><option value="play">🎮 박자 게임</option><option value="learn">🐣 기다려 주기</option></select>
+      <span hidden>놀이 방법</span><select id="mode" hidden><option value="play">🎮 박자 게임</option><option value="learn">🐣 기다려 주기</option></select>
       <span>악기</span><select id="inst"><option value="piano">🎹 피아노</option><option value="xylo">🔔 실로폰</option><option value="box">🎶 오르골</option><option value="drum">🥁 드럼</option></select>
       <span>건반 글자</span><select id="label"><option value="ko">도레미</option><option value="en">CDE</option><option value="none">글자 없음</option></select>
       <span>판정</span><select id="judge"><option value="1.5">😊 너그럽게</option><option value="1" selected>🙂 보통</option><option value="0.7">😎 정확하게</option></select>
@@ -117,8 +152,9 @@
     <div id="calGrid"></div>
     <div id="calInfo" style="font-weight:bold"></div>
   </div>
-  <div id="piano"></div>
-  <button id="hit" hidden>톡!</button>
+  <div id="piano" class="gameOnly"></div>
+  <div id="freePiano" class="freeOnly"></div>
+  <button id="hit" class="gameOnly" hidden>톡!</button>
 </div>
 <p class="hint">키보드: A S D F G H J K = 도~높은도, W E T Y U = 검은건반 (드럼은 스페이스바)</p>
 
@@ -356,7 +392,7 @@ const labelOf = k => k < 8 ? lab()[k] : $('label').value === 'none' ? '' : BNAME
 const updateLabels = () => whiteEls.forEach((el, i) => el.textContent = lab()[i]);
 
 // 설정 저장/불러오기 (기기에 저장, 실패해도 무시)
-const SAVE = ['song', 'view', 'speed', 'mode', 'inst', 'label', 'judge', 'lat'];
+const SAVE = ['song', 'view', 'speed', 'mode', 'inst', 'label', 'judge', 'lat', 'oct', 'octStart'];
 try {
   const s = JSON.parse(localStorage.getItem('settings') || '{}');
   SAVE.forEach(id => { if (s[id] != null && [...$(id).options].some(o => o.value === s[id])) $(id).value = s[id]; });
@@ -473,6 +509,7 @@ function mkRead(){
   catch (bad) { $('mkMsg').textContent = bad ? `"${bad}" 를 알 수 없어요` : '계이름을 적어 주세요'; return null; }
 }
 $('mkOpen').onclick = () => {
+  if (!$('home').hidden || document.body.classList.contains('free')) go('play'); // 내 노래는 게임 화면 건반으로 만듦
   if (playing) $('reset').onclick();
   const s = song(); $('settings').hidden = true; $('maker').hidden = false; $('mkMsg').textContent = '';
   $('mkName').value = s.lv === 4 ? $('song').value : ''; $('mkNotes').value = s.lv === 4 ? toKo(s.n) : '';
@@ -502,11 +539,81 @@ $('mkDel').onclick = () => {
   buildSongList(); showBest(); saveSettings(); $('maker').hidden = true;
 };
 
+// ---------- 자유 연습: 옥타브 수·시작 높이를 골라 여러 옥타브 건반으로 마음대로 연주 ----------
+const PC_W = [0, 2, 4, 5, 7, 9, 11];                          // 흰건반 반음 번호 (도레미파솔라시)
+const PC_B = [[0, 1], [1, 3], [3, 6], [4, 8], [5, 10]];       // [왼쪽 흰건반, 반음 번호] (검은건반)
+const midiFreq = m => 440 * Math.pow(2, (m - 69) / 12);       // 가운데 도(C4) = 60
+let freeKeys = [], freeW = 0, bubbles = [], hist = [], freeRaf = 0;
+function buildFree(){
+  const n = +$('oct').value, start = Math.min(+$('octStart').value, 8 - n); // 맨 위가 C8을 넘지 않게
+  const fp = $('freePiano'), N = n * 7 + 1, base = (start + 1) * 12;
+  fp.innerHTML = ''; freeKeys = []; freeW = N;
+  for (let w = 0; w < N; w++) {
+    const deg = w % 7, midi = base + Math.floor(w / 7) * 12 + PC_W[deg], el = document.createElement('div');
+    el.className = 'w'; el.style.borderTop = `6px solid ${COLORS[deg]}`;
+    el.innerHTML = lab()[deg] + (deg === 0 ? `<small>${Math.floor(midi / 12) - 1}</small>` : '');
+    if (midi === 60) el.classList.add('mid'); // 가운데 도 표시
+    el.onpointerdown = e => { e.preventDefault(); freePress(el, midi); };
+    fp.append(el); freeKeys.push({el, midi});
+  }
+  for (let o = 0; o < n; o++) for (const [lw, pc] of PC_B) {
+    const w = o * 7 + lw, midi = base + o * 12 + pc, el = document.createElement('div');
+    el.className = 'b'; el.style.width = 60 / N + '%'; el.style.left = `calc(${(w + 1) / N * 100}% - ${30 / N}%)`;
+    el.onpointerdown = e => { e.preventDefault(); freePress(el, midi); };
+    fp.append(el); freeKeys.push({el, midi});
+  }
+}
+function freePress(el, midi){
+  flash(el);
+  try { navigator.vibrate && navigator.vibrate(15); } catch {}
+  piano(midiFreq(midi));
+  const pc = midi % 12, w = PC_W.indexOf(pc), name = w >= 0 ? NAMES[w] : BNAMES.ko[PC_B.findIndex(b => b[1] === pc)];
+  const r = el.getBoundingClientRect(), cr = cv.getBoundingClientRect();
+  bubbles.push({x: r.left + r.width / 2 - cr.left, color: w >= 0 ? COLORS[w] : '#495057', name, at: performance.now()});
+  hist.push(name); if (hist.length > 12) hist.shift();
+  $('msg').textContent = '🎵 ' + hist.join(' ');
+  $('face').textContent = ['😺', '😸', '😻', '🐱'][hist.length % 4];
+  if (!freeRaf) freeRaf = requestAnimationFrame(drawFree);
+}
+function drawFree(){ // 누른 음이 색 방울로 떠오름
+  const W = cv.clientWidth, H = cv.clientHeight, t = performance.now();
+  cx.clearRect(0, 0, W, H);
+  bubbles = bubbles.filter(b => t - b.at < 1500);
+  cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  for (const b of bubbles) {
+    const p = (t - b.at) / 1500, y = H - 24 - p * (H - 48), rad = Math.min(26, H / 8) * (1.2 - p * .5);
+    cx.globalAlpha = 1 - p * p; cx.fillStyle = b.color; cx.beginPath(); cx.arc(b.x, y, rad, 0, 7); cx.fill();
+    cx.fillStyle = b.color === '#ffd43b' ? '#7a5b00' : '#fff'; cx.font = 'bold ' + Math.round(rad * .7) + 'px sans-serif'; cx.fillText(b.name, b.x, y);
+  }
+  cx.globalAlpha = 1; cx.textBaseline = 'alphabetic';
+  freeRaf = bubbles.length ? requestAnimationFrame(drawFree) : 0;
+}
+$('oct').onchange = $('octStart').onchange = () => { buildFree(); saveSettings(); };
+$('label').addEventListener('change', () => { if (document.body.classList.contains('free')) buildFree(); });
+
+// ---------- 메인 메뉴와 화면 전환 ----------
+const MODE_NAMES = {play: '🎮 박자 게임', learn: '🐣 기다려 주기', free: '🎹 자유 연습'};
+function go(where){
+  if (where === 'set') return $('setBtn').onclick();
+  if (where === 'cal') return $('calBtn').onclick();
+  if (playing) $('reset').onclick();
+  $('home').hidden = true;
+  document.body.className = where === 'free' ? 'free' : 'game';
+  $('modeName').textContent = MODE_NAMES[where];
+  if (where === 'free') { hist = []; buildFree(); react('😺', '마음대로 연주해 보세요! 🎵'); }
+  else { $('mode').value = where; showBest(); saveSettings(); react('😺', where === 'learn' ? '곡을 고르고 ▶ 시작! 맞는 건반을 칠 때까지 기다려 줘요' : '곡을 고르고 ▶ 시작을 눌러요!'); }
+  fit();
+}
+document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+function goHome(){ $('reset').onclick(); bubbles = []; $('home').hidden = false; }
+$('homeBtn').onclick = goHome;
+
 addEventListener('contextmenu', e => e.preventDefault());
 window.handleBack = () => {
   for (const id of ['maker', 'settings', 'result', 'cal']) if (!$(id).hidden) { $(id).hidden = true; return true; }
   if (playing && !paused) { $('pause').onclick(); return true; }
   if (playing) { $('reset').onclick(); return true; }
+  if ($('home').hidden) { goHome(); return true; } // 메인 메뉴로
   return false;
 };
 // 결과 창 버튼
@@ -523,6 +630,10 @@ addEventListener('keydown', e => {
   if (e.repeat || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return; // 글자 입력 중엔 건반 아님
   if (isDrum() && e.code === 'Space') { e.preventDefault(); press($('hit'), -1); }
   const i = KB.indexOf(e.key.toLowerCase()), j = KB_B.indexOf(e.key.toLowerCase());
+  if (document.body.classList.contains('free')) { // 자유 연습: 첫 옥타브
+    const k = i >= 0 ? freeKeys[i] : j >= 0 ? freeKeys[freeW + j] : null;
+    if (k) freePress(k.el, k.midi); return;
+  }
   if (!isDrum() && i >= 0) press(whiteEls[i], i);
   if (!isDrum() && j >= 0) press(blackEls[j], 8 + j);
 });
