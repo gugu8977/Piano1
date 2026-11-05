@@ -87,7 +87,73 @@
   #calGrid b{font-size:18px;line-height:1}
   #calGrid i{font-style:normal;font-size:12px;font-weight:bold}
   @media (max-height:500px){ #calGrid>div{min-height:22px} #calGrid b{font-size:14px} #cal{gap:3px} }
+
+  /* ===== 꾸미기: 파스텔 테마, 통통한 버튼 ===== */
+  body{font-family:'Jua',sans-serif;background:linear-gradient(160deg,#fff4e0,#ffe9f0 55%,#e6f3ff);color:#5a3d1e}
+  select,button{font-family:inherit;border:none;background:#fff;color:#5a3d1e;box-shadow:0 3px 0 #f0b070,0 4px 8px #0001;transition:transform .08s,box-shadow .08s}
+  button:active{transform:translateY(3px);box-shadow:0 0 0 #f0b070}
+  button:disabled{opacity:.45}
+  #start,#again{background:#ff8c42;color:#fff;box-shadow:0 3px 0 #d9622a,0 4px 8px #0001}
+  #bar{background:#ffffffb0;border-radius:16px;margin:4px 8px;padding:3px 6px;box-shadow:0 2px 8px #0001}
+  canvas{border-radius:20px 20px 0 0;box-shadow:0 4px 14px #f0a04033}
+  .panel{background:linear-gradient(160deg,#fff8ec,#fff0f5 60%,#eef6ff)}
+  .panel:not([hidden]){animation:panelIn .25s ease-out}
+  @keyframes panelIn{from{opacity:0;transform:scale(.95)}}
+  #mkName,#mkNotes{border:none;box-shadow:inset 0 2px 4px #0002}
+  /* 입체 건반: 누르면 쑥 들어가고 건반 색으로 빛남 */
+  .w{background:linear-gradient(#fff 70%,#f1f1f1);border:1px solid #d5d5d5;border-bottom:6px solid #ddd;border-radius:0 0 12px 12px;transition:transform .06s,border-bottom-width .06s}
+  .w.on{background:linear-gradient(#fff 20%,var(--c,#ffd27a));transform:translateY(3px);border-bottom-width:2px;box-shadow:0 0 20px var(--c,#ffd27a);z-index:1}
+  .b{background:linear-gradient(#555,#111 80%);border:1px solid #000;border-bottom:5px solid #000;box-shadow:0 3px 4px #0005;box-sizing:border-box;transition:transform .06s}
+  .b.on{background:linear-gradient(#777,#333);transform:translateY(2px);border-bottom-width:1px;box-shadow:0 0 16px #ff8c42}
+  /* 캐릭터 고양이 (SVG) */
+  #face{width:60px;height:60px;flex-shrink:0}
+  @media (max-height:500px){ #face{width:38px;height:38px} }
+  #face.bounce{animation:none}
+  .cat{width:100%;height:100%;overflow:visible}
+  .cat *{transform-box:fill-box;transform-origin:center}
+  .cat .bd{transform-origin:50% 100%;animation:breathe 2.6s ease-in-out infinite}
+  .cat .e,.cat .m{display:none}
+  #face[data-m=idle] .idle,#face[data-m=happy] .happy,#face[data-m=love] .love,#face[data-m=sad] .sad,#face[data-m=look] .look{display:inline}
+  .cat .e.idle{animation:blink 4s infinite}
+  #face.bounce[data-m=love] .cat{animation:jump .7s}
+  #face.bounce[data-m=happy] .cat{animation:hop .35s}
+  #face.bounce[data-m=sad] .cat{animation:tilt .7s}
+  #face.bounce[data-m=happy] .pl,#face.bounce[data-m=love] .pl{animation:clapL .18s 4 alternate}
+  #face.bounce[data-m=happy] .pr,#face.bounce[data-m=love] .pr{animation:clapR .18s 4 alternate}
+  @keyframes breathe{50%{transform:scale(1.03,.97)}}
+  @keyframes blink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}
+  @keyframes jump{30%{transform:translateY(-35%) rotate(-8deg)}55%{transform:none}75%{transform:translateY(-15%) rotate(6deg)}}
+  @keyframes hop{50%{transform:translateY(-15%)}}
+  @keyframes tilt{30%,70%{transform:rotate(-14deg)}}
+  @keyframes clapL{to{transform:translate(55%,-20%)}}
+  @keyframes clapR{to{transform:translate(-55%,-20%)}}
+  /* 메인 메뉴: 떠다니는 음표, 색색 타일 */
+  #home{background:linear-gradient(160deg,#fff4e0,#ffe3ee 55%,#dff0ff)}
+  #home:not([hidden]){animation:panelIn .3s ease-out}
+  #home h2{font-size:min(40px,9vh);color:#ff7b2e;text-shadow:0 3px 0 #fff,0 5px 12px #f0a04066;animation:bob 3s ease-in-out infinite}
+  .menu button{--tc:#ff8c42;background:linear-gradient(#fff,#fff7ef);border:3px solid var(--tc);box-shadow:0 6px 0 var(--tc),0 9px 16px #0002;animation:popIn .5s backwards}
+  .menu button:nth-child(1){--tc:#ff6b6b;animation-delay:.05s}
+  .menu button:nth-child(2){--tc:#fcc419;animation-delay:.12s}
+  .menu button:nth-child(3){--tc:#51cf66;animation-delay:.19s}
+  .menu button:nth-child(4){--tc:#4dabf7;animation-delay:.26s}
+  .menu button:nth-child(5){--tc:#b197fc;animation-delay:.33s}
+  .menu button:active{transform:translateY(5px) scale(.97);box-shadow:0 1px 0 var(--tc)}
+  .menu b{display:inline-block;animation:bob 2.4s ease-in-out infinite}
+  .menu button:nth-child(even) b{animation-delay:-1.2s}
+  #noteBg{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:-1}
+  #noteBg span{position:absolute;bottom:-50px;opacity:.45;animation:floatUp linear infinite}
+  @keyframes bob{50%{transform:translateY(-6px)}}
+  @keyframes popIn{from{transform:scale(.3);opacity:0}70%{transform:scale(1.08)}}
+  @keyframes floatUp{to{transform:translateY(-120vh) rotate(25deg)}}
+  /* 결과 창: 별이 하나씩 쿵 */
+  #rStars{animation:none}
+  #rStars span{display:inline-block;animation:starDrop .5s backwards}
+  #rStars span.off{filter:grayscale(1);opacity:.3}
+  @keyframes starDrop{0%{transform:translateY(-80px) scale(2);opacity:0}60%{transform:none;opacity:1}80%{transform:scale(1.2)}}
+  #rPct{color:#ff7b2e;font-size:1.3em}
+  .conf.paper{width:8px;height:14px;border-radius:2px;font-size:0}
 </style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
 </head>
 <body class="game">
 <!-- 메인 메뉴 -->
@@ -113,7 +179,28 @@
     <select id="octStart"><option value="2">낮은 음부터</option><option value="3">조금 낮은 음부터</option><option value="4" selected>가운데 도부터</option><option value="5">높은 음부터</option></select></span>
   <span class="right"><button id="calBtn" title="스티커">🗓</button><button id="setBtn" title="설정">⚙ 설정</button></span>
 </div>
-<div id="top"><div id="face">😺</div><div><div id="msg">시작을 누르고 내려오는 건반을 쳐요!</div><span class="gameOnly">점수: <b id="score">0</b> · 🏆 최고: <b id="best">0</b>%</span></div></div>
+<div id="top"><div id="face" data-m="idle"><svg class="cat" viewBox="0 0 100 100">
+  <g class="bd">
+    <path d="M16 44 L20 6 L44 26 Z" fill="#ffa94d"/><path d="M84 44 L80 6 L56 26 Z" fill="#ffa94d"/>
+    <path d="M23 34 L25 15 L37 27 Z" fill="#ffc9c9"/><path d="M77 34 L75 15 L63 27 Z" fill="#ffc9c9"/>
+    <ellipse cx="50" cy="56" rx="38" ry="32" fill="#ffa94d"/>
+    <path d="M44 25 L46 33 M50 24 L50 33 M56 25 L54 33" stroke="#e8590c" stroke-width="3" stroke-linecap="round"/>
+    <ellipse cx="50" cy="69" rx="19" ry="12" fill="#fff4e6"/>
+    <circle cx="24" cy="66" r="6" fill="#ff8787" opacity=".5"/><circle cx="76" cy="66" r="6" fill="#ff8787" opacity=".5"/>
+    <path d="M28 64 L10 61 M28 69 L11 71 M72 64 L90 61 M72 69 L89 71" stroke="#c46a1a" stroke-width="1.5" stroke-linecap="round"/>
+    <g class="e idle"><circle cx="36" cy="51" r="5.5" fill="#333"/><circle cx="64" cy="51" r="5.5" fill="#333"/><circle cx="37.8" cy="49" r="1.8" fill="#fff"/><circle cx="65.8" cy="49" r="1.8" fill="#fff"/></g>
+    <g class="e happy" stroke="#333" stroke-width="4" fill="none" stroke-linecap="round"><path d="M29 54 Q36 44 43 54"/><path d="M57 54 Q64 44 71 54"/></g>
+    <g class="e love" fill="#f03e3e"><path d="M36 58 L28 50 A4.5 4.5 0 0 1 36 44 A4.5 4.5 0 0 1 44 50 Z"/><path d="M64 58 L56 50 A4.5 4.5 0 0 1 64 44 A4.5 4.5 0 0 1 72 50 Z"/></g>
+    <g class="e sad"><circle cx="36" cy="53" r="5" fill="#333"/><circle cx="64" cy="53" r="5" fill="#333"/><path d="M28 43 L42 46 M72 43 L58 46" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M30 60 Q28 66 31 67 Q34 66 30 60Z" fill="#74c0fc"/></g>
+    <g class="e look"><circle cx="36" cy="50" r="8" fill="#fff" stroke="#333" stroke-width="2"/><circle cx="64" cy="50" r="8" fill="#fff" stroke="#333" stroke-width="2"/><circle cx="38" cy="51" r="4.5" fill="#333"/><circle cx="66" cy="51" r="4.5" fill="#333"/></g>
+    <path d="M46 62 L54 62 L50 66 Z" fill="#e8590c"/>
+    <path class="m idle look" d="M42 68 Q46 73 50 68 Q54 73 58 68" stroke="#5a3d1e" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path class="m happy love" d="M41 68 Q50 82 59 68 Z" fill="#c92a2a"/>
+    <ellipse class="m sad" cx="50" cy="73" rx="4" ry="3.5" fill="#c92a2a"/>
+  </g>
+  <ellipse class="pl" cx="28" cy="90" rx="9" ry="7" fill="#ffa94d" stroke="#e8590c" stroke-width="1.5"/>
+  <ellipse class="pr" cx="72" cy="90" rx="9" ry="7" fill="#ffa94d" stroke="#e8590c" stroke-width="1.5"/>
+</svg></div><div><div id="msg">시작을 누르고 내려오는 건반을 쳐요!</div><span class="gameOnly">점수: <b id="score">0</b> · 🏆 최고: <b id="best">0</b>%</span></div></div>
 <div id="stage">
   <div id="progress" class="gameOnly"><div></div></div>
   <canvas id="cv" width="720" height="260"></canvas>
@@ -399,7 +486,7 @@ function glide(box, fire){
 }
 glide($('piano'), el => { const i = keyEls.indexOf(el); if (i >= 0) press(el, i); });
 
-function flash(el){ el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 120); }
+function flash(el){ el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 160); }
 
 // 건반 글자: 도레미 / CDE / 없음
 const LABELS = {ko: NAMES, en: ['C','D','E','F','G','A','B','C'], none: Array(8).fill('')};
@@ -566,7 +653,7 @@ function buildFree(){
   fp.innerHTML = ''; freeKeys = []; freeW = N;
   for (let w = 0; w < N; w++) {
     const deg = w % 7, midi = base + Math.floor(w / 7) * 12 + PC_W[deg], el = document.createElement('div');
-    el.className = 'w'; el.style.borderTop = `6px solid ${COLORS[deg]}`;
+    el.className = 'w'; el.style.borderTop = `6px solid ${COLORS[deg]}`; el.style.setProperty('--c', COLORS[deg]);
     el.innerHTML = lab()[deg] + (deg === 0 ? `<small>${Math.floor(midi / 12) - 1}</small>` : '');
     if (midi === 60) el.classList.add('mid'); // 가운데 도 표시
     el.onpointerdown = e => { e.preventDefault(); freePress(el, midi); };
@@ -589,7 +676,7 @@ function freePress(el, midi){
   bubbles.push({x: r.left + r.width / 2 - cr.left, color: w >= 0 ? COLORS[w] : '#495057', name, at: performance.now()});
   hist.push(name); if (hist.length > 12) hist.shift();
   $('msg').textContent = '🎵 ' + hist.join(' ');
-  $('face').textContent = ['😺', '😸', '😻', '🐱'][hist.length % 4];
+  if (hist.length % 4 === 0) react(hist.length % 8 ? '😸' : '😻', $('msg').textContent);
   if (!freeRaf) freeRaf = requestAnimationFrame(drawFree);
 }
 function drawFree(){ // 누른 음이 색 방울로 떠오름
@@ -600,7 +687,8 @@ function drawFree(){ // 누른 음이 색 방울로 떠오름
   for (const b of bubbles) {
     const p = (t - b.at) / 1500, y = H - 24 - p * (H - 48), rad = Math.min(26, H / 8) * (1.2 - p * .5);
     cx.globalAlpha = 1 - p * p; cx.fillStyle = b.color; cx.beginPath(); cx.arc(b.x, y, rad, 0, 7); cx.fill();
-    cx.fillStyle = b.color === '#ffd43b' ? '#7a5b00' : '#fff'; cx.font = 'bold ' + Math.round(rad * .7) + 'px sans-serif'; cx.fillText(b.name, b.x, y);
+    cx.fillStyle = 'rgba(255,255,255,.45)'; cx.beginPath(); cx.arc(b.x - rad * .35, y - rad * .4, rad * .25, 0, 7); cx.fill(); // 방울 반짝임
+    cx.fillStyle = b.color === '#ffd43b' ? '#7a5b00' : '#fff'; cx.font = 'bold ' + Math.round(rad * .7) + 'px Jua, sans-serif'; cx.fillText(b.name, b.x, y);
   }
   cx.globalAlpha = 1; cx.textBaseline = 'alphabetic';
   freeRaf = bubbles.length ? requestAnimationFrame(drawFree) : 0;
@@ -620,9 +708,29 @@ function go(where){
   if (where === 'free') { hist = []; buildFree(); react('😺', '마음대로 연주해 보세요! 🎵'); }
   else { $('mode').value = where; showBest(); saveSettings(); react('😺', where === 'learn' ? '곡을 고르고 ▶ 시작! 맞는 건반을 칠 때까지 기다려 줘요' : '곡을 고르고 ▶ 시작을 눌러요!'); }
   fit();
+  for (const id of ['bar', 'top', 'stage']) $(id).animate([{opacity: 0, transform: 'translateX(40px)'}, {opacity: 1, transform: 'none'}], {duration: 300, easing: 'ease-out'});
 }
 document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
 function goHome(){ $('reset').onclick(); bubbles = []; $('home').hidden = false; }
+// 메인 메뉴 배경에 떠오르는 음표
+const noteBg = document.createElement('div'); noteBg.id = 'noteBg'; $('home').append(noteBg);
+for (let i = 0; i < 14; i++) {
+  const s = document.createElement('span');
+  s.textContent = ['🎵', '🎶', '⭐', '🎹', '🎈'][i % 5];
+  s.style.left = (i / 14 * 100 + Math.random() * 5) + '%'; s.style.fontSize = 20 + Math.random() * 22 + 'px';
+  s.style.animationDuration = 9 + Math.random() * 8 + 's'; s.style.animationDelay = -Math.random() * 17 + 's';
+  noteBg.append(s);
+}
+// 버튼 누를 때 짧은 '뿅' 소리
+addEventListener('pointerdown', e => {
+  if (!e.target.closest || !e.target.closest('button') || e.target.closest('#hit')) return;
+  try {
+    const a = audio(), t = a.currentTime, o = a.createOscillator(), g = a.createGain();
+    o.frequency.setValueAtTime(600, t); o.frequency.exponentialRampToValueAtTime(1100, t + .06);
+    g.gain.setValueAtTime(.07, t); g.gain.exponentialRampToValueAtTime(.001, t + .09);
+    o.connect(g).connect(master); o.start(t); o.stop(t + .1);
+  } catch {}
+}, true);
 $('homeBtn').onclick = goHome;
 
 addEventListener('contextmenu', e => e.preventDefault());
@@ -694,8 +802,10 @@ function begin(isAuto){
 }
 let raf = 0;
 
+// 이모지 표정 → 그림 고양이 표정 (idle 보통 / happy 웃음 / love 하트 눈 / sad 시무룩 / look 동그란 눈)
+var MOOD = {'😻':'love', '🥳':'love', '😸':'happy', '😊':'happy', '🤗':'happy', '🙀':'sad', '😿':'sad', '🤔':'sad', '👀':'look'};
 function react(face, msg){
-  const f = $('face'); f.textContent = face; $('msg').textContent = msg;
+  const f = $('face'); f.dataset.m = MOOD[face] || 'idle'; $('msg').textContent = msg;
   f.classList.remove('bounce'); void f.offsetWidth; f.classList.add('bounce'); // 표정 바뀔 때 통통
 }
 
@@ -769,8 +879,22 @@ const resColor = n => ({p:'#2f9e44', g:'#1c7ed6', m:'#bbb'}[n.res] || (isDrum() 
 // 시작 전 4-3-2-1
 function countIn(now, W, y, size){
   if (now >= t0) return;
-  cx.fillStyle = '#ff8c42'; cx.font = 'bold ' + size + 'px sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  cx.fillStyle = '#ff8c42'; cx.font = 'bold ' + size + 'px Jua, sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
   cx.fillText(Math.ceil((t0 - now) / BEAT - 1e-6), W / 2, y); cx.textBaseline = 'alphabetic';
+}
+
+// 작은 별 하나 그리기
+function star(x, y, r){
+  cx.beginPath();
+  for (let i = 0; i < 10; i++) { const a = i * Math.PI / 5 - Math.PI / 2, d = i % 2 ? r * .45 : r; cx.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d); }
+  cx.fill();
+}
+// 판정 글자: 크게 튀어나왔다가 줄어들며 떠오름, 흰 테두리
+function popText(txt, color, x, y, size, p){
+  const s = size * (1 + .6 * Math.max(0, 1 - p * 5));
+  cx.font = Math.round(s) + 'px Jua, sans-serif'; cx.textAlign = 'center'; cx.lineJoin = 'round';
+  cx.lineWidth = Math.max(3, s * .22); cx.strokeStyle = '#fff'; cx.strokeText(txt, x, y);
+  cx.fillStyle = color; cx.fillText(txt, x, y);
 }
 
 // ----- 내려오는 음표 화면 -----
@@ -778,7 +902,8 @@ function drawFall(now, total){
   const W = cv.clientWidth, H = cv.clientHeight, lw = W / 8;
   const HY = H - 12, PX = Math.max(HY / 3.2, 40); // 판정선 y, 1박당 픽셀 (화면에 약 3박이 보이게)
   cx.clearRect(0, 0, W, H);
-  // 세로 레인
+  // 세로 레인 (건반 색으로 아주 연하게)
+  if (!isDrum()) { cx.globalAlpha = .07; for (let i = 0; i < 8; i++) { cx.fillStyle = COLORS[i]; cx.fillRect(i * lw, 0, lw, H); } cx.globalAlpha = 1; }
   for (let i = 1; i < 8; i++) { cx.fillStyle = '#f2f2f2'; cx.fillRect(i * lw, 0, 1, H); }
   // 마디선 (한 마디 = meter박)
   cx.fillStyle = '#ffe8cc';
@@ -787,7 +912,9 @@ function drawFall(now, total){
     if (y > 0 && y < HY) cx.fillRect(0, y, W, 2);
   }
   // 판정선
-  cx.fillStyle = '#ff8c42'; cx.fillRect(0, HY, W, 5);
+  const jl = cx.createLinearGradient(0, 0, W, 0);
+  COLORS.forEach((c, i) => jl.addColorStop(i / 7, c));
+  cx.shadowColor = '#ff8c42'; cx.shadowBlur = 10; cx.fillStyle = jl; cx.fillRect(0, HY, W, 5); cx.shadowBlur = 0;
   const laneX = k => isDrum() || k < 0 ? W / 2 - lw / 2 : k < 8 ? k * lw : (BLACK[k - 8][0] + .5) * lw;
   // 누른 줄 반짝임
   const pt = performance.now(), la = 1 - (pt - laneHit.at) / 200;
@@ -800,10 +927,15 @@ function drawFall(now, total){
   fx = fx.filter(f => pt - f.at < 600);
   cx.textAlign = 'center';
   for (const f of fx) {
-    const p = (pt - f.at) / 600;
-    cx.globalAlpha = 1 - p; cx.fillStyle = f.color;
-    cx.font = 'bold ' + Math.min(20, lw * .4) + 'px sans-serif';
-    cx.fillText(f.txt, laneX(f.k) + lw / 2, HY - 30 - p * 40);
+    const p = (pt - f.at) / 600, fxX = laneX(f.k) + lw / 2;
+    // 반짝이 가루 (최고·좋아만)
+    if (f.color !== '#868e96' && f.color !== '#adb5bd') for (let s = 0; s < 8; s++) {
+      const a = s / 8 * 6.28 + f.at, d = 10 + p * lw * .9;
+      cx.globalAlpha = 1 - p; cx.fillStyle = COLORS[(s + f.k + 8) % 7];
+      star(fxX + Math.cos(a) * d, HY - Math.abs(Math.sin(a)) * d, 5 * (1 - p) + 2);
+    }
+    cx.globalAlpha = 1 - p * p;
+    popText(f.txt, f.color, fxX, HY - 34 - p * 40, Math.min(22, lw * .42), p);
   }
   cx.globalAlpha = 1;
   countIn(now, W, HY / 2, Math.min(72, H * .4));
@@ -812,12 +944,21 @@ function drawFall(now, total){
     const y = HY - (t - now) / BEAT * PX, h = n.len * PX - 8;
     if (y < 0 || y - h > H) continue;
     const x = laneX(n.k);
-    cx.fillStyle = {p:'#8ce99a', g:'#a5d8ff', m:'#ddd'}[n.res] || (isDrum() ? '#ff8c42' : colorOf(n.k));
+    // 사탕 모양 음표: 반짝이는 띠 + 아래쪽 흰 동그라미에 음이름, 판정선 가까이 오면 빛남
+    const col = {p:'#8ce99a', g:'#a5d8ff', m:'#ddd'}[n.res] || (isDrum() ? '#ff8c42' : colorOf(n.k));
+    const nx = x + 6, nw = lw - 12, top = y - h, rr = Math.min(14, nw / 2, h / 2);
     if (n.res === 'a') cx.globalAlpha = .5;
-    cx.beginPath(); cx.roundRect(x + 6, y - h, lw - 12, h, 10); cx.fill(); cx.globalAlpha = 1;
+    if (!n.res && t - now < BEAT) { cx.shadowColor = col; cx.shadowBlur = 16; }
+    cx.fillStyle = col; cx.beginPath(); cx.roundRect(nx, top, nw, h, rr); cx.fill(); cx.shadowBlur = 0;
+    cx.fillStyle = 'rgba(255,255,255,.4)'; cx.beginPath(); cx.roundRect(nx + 4, top + 4, nw * .22, Math.max(0, h - 8), 6); cx.fill();
+    cx.fillStyle = 'rgba(0,0,0,.1)'; cx.beginPath(); cx.roundRect(nx, y - 5, nw, 5, [0, 0, rr, rr]); cx.fill();
+    cx.globalAlpha = 1;
     if (!n.res && !isDrum()) {
-      cx.fillStyle = '#fff'; cx.font = 'bold ' + Math.min(22, lw * .45) + 'px sans-serif'; cx.textAlign = 'center';
-      cx.fillText(labelOf(n.k), x + lw / 2, y - 10);
+      const fs = Math.min(20, lw * .4), cy = y - fs * .9;
+      if (h > fs * 1.6) { cx.fillStyle = 'rgba(255,255,255,.92)'; cx.beginPath(); cx.arc(x + lw / 2, cy, fs * .78, 0, 7); cx.fill(); }
+      cx.fillStyle = h > fs * 1.6 ? col : '#fff'; cx.font = fs + 'px Jua, sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+      if (col === '#ffd43b') cx.fillStyle = '#c99700';
+      cx.fillText(labelOf(n.k), x + lw / 2, cy + 1); cx.textBaseline = 'alphabetic';
     }
   }
 }
@@ -878,7 +1019,7 @@ function drawSheet(now, total){
     for (let mi = 0; mi <= M; mi++) { const x = barX(mi); if (x > L && x < W) { cx.moveTo(x, top); cx.lineTo(x, top + 4 * g); } }
     cx.stroke();
     if (barX(M) < W) cx.fillRect(barX(M) - 4, top, 4, 4 * g + 1); // 곡의 끝
-    cx.font = Math.max(9, g * .9) + 'px sans-serif'; cx.fillStyle = '#aaa'; cx.textAlign = 'left';
+    cx.font = Math.max(9, g * .9) + 'px Jua, sans-serif'; cx.fillStyle = '#aaa'; cx.textAlign = 'left';
     for (let mi = 0; mi < M; mi++) { const x = barX(mi); if (x > L - g * 3 && x < W) cx.fillText(mLabel(mi, m), x + 3, top - g * 1.2); }
     cx.fillStyle = '#555';
   }
@@ -894,7 +1035,7 @@ function drawSheet(now, total){
       cx.stroke();
       if (mi === M - 1) cx.fillRect(x1 - 4, top, 4, 4 * g + 1); // 곡의 끝: 굵은 마침줄
       if (c === 0) sig(top);
-      cx.font = Math.max(9, g * .9) + 'px sans-serif'; cx.fillStyle = '#aaa'; cx.textAlign = 'left';
+      cx.font = Math.max(9, g * .9) + 'px Jua, sans-serif'; cx.fillStyle = '#aaa'; cx.textAlign = 'left';
       cx.fillText(mLabel(mi, m), (c ? x0 : L) + 2, top - g * 1.2); cx.fillStyle = '#555'; // 마디 번호
     }
   }
@@ -961,7 +1102,7 @@ function drawSheet(now, total){
     // 계이름 (오선 아래, 첫 조각에만)
     if (first && !isDrum()) {
       cx.fillStyle = n.res ? '#aaa' : colorOf(n.k) === '#ffd43b' ? '#e0a800' : colorOf(n.k);
-      cx.font = 'bold ' + lab + 'px sans-serif'; cx.textAlign = 'center';
+      cx.font = 'bold ' + lab + 'px Jua, sans-serif'; cx.textAlign = 'center';
       cx.fillText(labelOf(n.k), x, top + 6 * g + lab * .4);
     }
     return {x, y, r: q.r, up, col};
@@ -995,8 +1136,8 @@ function drawSheet(now, total){
   for (const f of fx) {
     const q = pos(f.n.beat); if (!q.vis) continue;
     const t = (pt - f.at) / 600;
-    cx.globalAlpha = 1 - t; cx.fillStyle = f.color; cx.font = 'bold ' + Math.max(12, g * 1.3) + 'px sans-serif'; cx.textAlign = 'center';
-    cx.fillText(f.txt, q.x + g * .6, staffTop(q.r) - g * 1.6 - t * g * 1.5);
+    cx.globalAlpha = 1 - t * t;
+    popText(f.txt, f.color, q.x + g * .6, staffTop(q.r) - g * 1.6 - t * g * 1.5, Math.max(12, g * 1.3), t);
   }
   cx.globalAlpha = 1;
   countIn(now, W, H / 2, Math.min(64, H * .35));
@@ -1030,8 +1171,15 @@ function finish(){
   react(pct >= 85 ? '🥳' : pct >= 60 ? '😊' : '🤗', `끝! 정확도 ${pct}% ${stars}${rec ? ' 🏆 새 기록!' : ''}${opened}`);
   // 결과 창
   const cnt = r => notes.filter(n => n.res === r).length;
-  $('rStars').textContent = stars;
-  $('rText').textContent = `${$('song').value}${range} · 정확도 ${pct}%${rec ? ' 🏆 새 기록!' : ''}`;
+  // 별이 하나씩 쿵쿵 떨어지고(얻은 별만 소리), 정확도 숫자가 0부터 올라감
+  const ns = pct >= 85 ? 3 : pct >= 60 ? 2 : 1, at = audio().currentTime;
+  $('rStars').innerHTML = [0, 1, 2].map(i => `<span class="${i < ns ? '' : 'off'}" style="animation-delay:${.2 + i * .35}s">⭐</span>`).join('');
+  for (let i = 0; i < ns; i++) piano(FREQ[i * 2 + 2], at + .45 + i * .35);
+  const pb = document.createElement('b'); pb.id = 'rPct'; pb.textContent = '0';
+  $('rText').textContent = `${$('song').value}${range} · 정확도 `;
+  $('rText').append(pb, `%${rec ? ' 🏆 새 기록!' : ''}`);
+  const cs = performance.now(), countUp = () => { const q = Math.min(1, (performance.now() - cs) / 1000); pb.textContent = Math.round(pct * (1 - (1 - q) ** 3)); if (q < 1) requestAnimationFrame(countUp); };
+  countUp();
   $('rCounts').textContent = (learn() ? `${notes.length}개 음을 모두 쳤어요! 👏`
     : `😻 최고 ${cnt('p')}  ·  😸 좋아 ${cnt('g')}  ·  😿 놓침 ${cnt('m')}`) + (wrong ? `  ·  🤔 틀린 건반 ${wrong}` : '');
   $('rSticker').textContent = (sticker ? `🎁 오늘의 스티커 ${sticker} 받았어요! (🔥 ${streak()}일 연속)` : '') + opened;
@@ -1046,6 +1194,12 @@ function confetti(){
     s.style.left = Math.random() * 100 + 'vw'; s.style.animationDelay = Math.random() * .8 + 's';
     s.style.animationDuration = 1.6 + Math.random() + 's';
     document.body.append(s); setTimeout(() => s.remove(), 3500);
+  }
+  for (let i = 0; i < 36; i++) { // 색종이
+    const s = document.createElement('span'); s.className = 'conf paper';
+    s.style.background = COLORS[i % 7]; s.style.left = Math.random() * 100 + 'vw';
+    s.style.animationDelay = Math.random() * 1.2 + 's'; s.style.animationDuration = 1.8 + Math.random() * 1.4 + 's';
+    document.body.append(s); setTimeout(() => s.remove(), 4500);
   }
 }
 // 잘했을 때 짧은 축하 소리 (도-미-솔-도)
