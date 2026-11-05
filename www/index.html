@@ -143,12 +143,28 @@
   body.chord #cv{display:none}
   #chordBox{flex:1;min-height:0;overflow:auto;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 4px 14px #f0a04033;display:flex;flex-direction:column;gap:4px;padding:6px;box-sizing:border-box}
   #chordBox .row{margin:0}
-  #chPal button{min-width:44px;font-size:17px;padding:4px 8px}
+  #chRoot button{min-width:40px;font-size:16px;padding:3px 6px}
+  #chQual{margin:0;align-items:center} #chordBox>.row{align-items:center}
+  #chQual button{font-size:14px;padding:3px 7px;background:#f3f0ff}
+  #chQual button.cur{background:#b197fc;color:#fff}
+  #chProg small{display:block;font-size:9px;letter-spacing:1px;color:#f0a040;line-height:1}
+  #chProg button.cur small{color:#fff}
+  #chProg i{font-style:normal;color:#ccc;font-size:22px}
+  #chEdit{display:flex;gap:4px;align-items:center}
+  #chEdit button{padding:3px 9px}
   #chProg{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;min-height:34px;align-items:center;color:#aaa}
   #chProg button{font-size:18px;padding:4px 12px;background:#fff4e6}
   #chProg button.cur{background:#ff8c42;color:#fff;transform:scale(1.12)}
   #chNow{display:flex;align-items:center;justify-content:center;gap:16px}
-  #chName{font-size:min(46px,10vh);color:#ff7b2e;min-width:90px}
+  #chName{font-size:min(34px,8vh);color:#ff7b2e;min-width:60px}
+  #chNow{gap:10px}
+  body.chord #freePiano{height:min(170px,33vh)}
+  @media (max-height:500px){
+    #chordBox{gap:2px;padding:3px}
+    #chordBox button,#chordBox select{font-size:13px;padding:2px 6px}
+    #chProg button{font-size:15px;padding:2px 8px}
+    #chTones{font-size:14px} #chBeat span{width:11px;height:11px}
+  }
   #chTones{font-size:18px}
   #chBeat span{display:inline-block;width:16px;height:16px;border-radius:50%;background:#ffe0b3;margin:0 3px}
   #chBeat span.on{background:#ff8c42;transform:scale(1.3)}
@@ -223,13 +239,14 @@
   <div id="progress" class="gameOnly"><div></div></div>
   <canvas id="cv" width="720" height="260"></canvas>
   <div id="chordBox" class="chordOnly">
-    <div class="row"><select id="chPre"><option value="">🎼 추천 진행</option><option>C G Am F</option><option>C F G C</option><option>C Am F G</option><option>C Am Dm G7</option><option>F G Em Am</option></select>
+    <div class="row"><select id="chPre"><option value="">🎼 추천 진행</option><option>C G Am F</option><option>C:2 G:2 Am:2 F:2</option><option>C F G C</option><option>C Am Dm G7</option><option>Am F C G</option><option>C Cmaj7 C7 F</option><option>C:2 Am:2 Dm:2 G7:2</option><option>F G Em Am</option></select>
       <select id="chBpm"><option value="60">🐢 60</option><option value="80" selected>🚶 80</option><option value="100">🐇 100</option><option value="120">🚀 120</option></select>
       <select id="chPat"><option value="block">쿵짝짝짝</option><option value="arp">펼친 화음</option><option value="long">길게 한 번</option></select>
-      <button id="chPlay">▶ 반주 (4/4)</button><button id="chDel">⌫</button><button id="chClr">🗑</button></div>
-    <div class="row" id="chPal"></div>
-    <div id="chProg"></div>
-    <div id="chNow"><b id="chName"></b><span id="chTones"></span><span id="chBeat"><span></span><span></span><span></span><span></span></span></div>
+      <select id="chLen"><option value="1">새 코드 1박</option><option value="2">새 코드 2박</option><option value="3">새 코드 3박</option><option value="4" selected>새 코드 4박</option></select>
+      <button id="chPlay">▶ 반주 (4/4)</button><button id="chClr">🗑</button></div>
+    <div class="row" id="chRoot"></div>
+    <div class="row"><span id="chQual" class="row"></span><span id="chNow"><b id="chName"></b><span id="chTones"></span><span id="chBeat"><span></span><span></span><span></span><span></span></span></span></div>
+    <div class="row"><span id="chProg"></span><span id="chEdit"><button id="chMinus">−</button><b id="chLenTxt"></b><button id="chPlus">+</button><button id="chLeft">◀</button><button id="chRight">▶</button><button id="chX">✖</button></span></div>
   </div>
   <div id="settings" class="panel" hidden>
     <div class="grid">
@@ -522,7 +539,7 @@ const labelOf = k => k < 8 ? lab()[k] : $('label').value === 'none' ? '' : BNAME
 const updateLabels = () => whiteEls.forEach((el, i) => el.textContent = lab()[i]);
 
 // 설정 저장/불러오기 (기기에 저장, 실패해도 무시)
-const SAVE = ['song', 'view', 'speed', 'mode', 'inst', 'label', 'judge', 'lat', 'oct', 'octStart', 'chBpm', 'chPat'];
+const SAVE = ['song', 'view', 'speed', 'mode', 'inst', 'label', 'judge', 'lat', 'oct', 'octStart', 'chBpm', 'chPat', 'chLen'];
 try {
   const s = JSON.parse(localStorage.getItem('settings') || '{}');
   SAVE.forEach(id => { if (s[id] != null && [...$(id).options].some(o => o.value === s[id])) $(id).value = s[id]; });
@@ -724,26 +741,50 @@ function drawFree(){ // 누른 음이 색 방울로 떠오름
 $('oct').onchange = $('octStart').onchange = () => { buildFree(); chordShow(); saveSettings(); };
 $('label').addEventListener('change', () => { if (document.body.classList.contains('free')) buildFree(); });
 
-// ---------- 코드 연습: 진행(한 코드 = 한 마디)을 만들어 4/4박자 반주, 빛나는 구성음을 함께 누르면 칭찬 ----------
-const CHORDS = {C:[0,4,7], Dm:[2,5,9], Em:[4,7,11], F:[5,9,12], G:[7,11,14], Am:[9,12,16], G7:[7,11,14,17], C7:[0,4,7,10], D:[2,6,9], E:[4,8,11], A:[9,13,16], Bb:[10,14,17]};
+// ---------- 코드 연습: 근음 + 종류로 코드를 만들고, 코드마다 길이(1~8박)를 정해 4/4박자로 반주. 빛나는 구성음을 함께 누르면 칭찬 ----------
+const ROOTS = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+const QUAL = {'':[0,4,7], m:[0,3,7], '7':[0,4,7,10], maj7:[0,4,7,11], m7:[0,3,7,10], sus4:[0,5,7], dim:[0,3,6], aug:[0,4,8]};
+const QORD = ['', 'm', '7', 'maj7', 'm7', 'sus4', 'dim', 'aug']; // 버튼 순서 (객체 키 '7'이 앞으로 가는 것 방지)
+const QLAB = {'':'메이저', m:'m', '7':'7', maj7:'maj7', m7:'m7', sus4:'sus4', dim:'dim', aug:'aug'};
 const PCN = ['도','도♯','레','미♭','미','파','파♯','솔','라♭','라','시♭','시'];
+function parseCh(c){ const m = /^([A-G][#b]?)(.*)$/.exec(c) || [], r = ROOTS.indexOf(m[1]); return r < 0 || !(m[2] in QUAL) ? null : {r, q: m[2]}; }
+function tones(c){ const p = parseCh(c); return p ? QUAL[p.q].map(i => p.r + i) : []; } // 가운데 도에서 몇 반음 위인지
 var chProg = [], chCur = 0, chTimer = 0, chBus = null, chRecent = [];
-try { chProg = JSON.parse(localStorage.getItem('chords') || '["C","G","Am","F"]').filter(c => CHORDS[c]); } catch {}
+const chParse = str => str.split(' ').map(t => { const [c, b] = t.split(':'); return {c, b: +b || 4}; });
+try {
+  const sv = JSON.parse(localStorage.getItem('chords') || 'null');
+  chProg = (sv || chParse('C G Am F')).map(x => typeof x === 'string' ? {c: x, b: 4} : x).filter(x => parseCh(x.c) && x.b >= 1 && x.b <= 8);
+} catch {}
 const chSave = () => { try { localStorage.setItem('chords', JSON.stringify(chProg)); } catch {} };
+function chBtn(txt, fn, box){ const b = document.createElement('button'); b.innerHTML = txt; b.onclick = fn; $(box).append(b); return b; }
 function chordRender(){
-  $('chPal').innerHTML = ''; $('chProg').innerHTML = '';
-  for (const c in CHORDS) { const b = document.createElement('button'); b.textContent = c; b.onclick = () => { chProg.push(c); chCur = chProg.length - 1; chSave(); chordRender(); chordStrum(c); }; $('chPal').append(b); }
-  chProg.forEach((c, i) => { const b = document.createElement('button'); b.textContent = c; b.classList.toggle('cur', i === chCur); b.onclick = () => { chCur = i; chordRender(); if (!chTimer) chordStrum(c); }; $('chProg').append(b); });
-  if (!chProg.length) $('chProg').textContent = '위 코드 버튼을 눌러 진행을 만들어요 (한 코드 = 한 마디)';
+  for (const id of ['chRoot', 'chQual', 'chProg']) $(id).innerHTML = '';
+  const sel = chProg[chCur], sp = sel && parseCh(sel.c);
+  // 근음 버튼: 누르면 진행 끝에 메이저 코드 추가 / 종류 버튼: 선택한 코드를 그 종류로 바꿈
+  ROOTS.forEach(r => chBtn(r, () => { chProg.push({c: r, b: +$('chLen').value}); chCur = chProg.length - 1; chSave(); chordRender(); chordStrum(r); }, 'chRoot'));
+  for (const q of QORD) chBtn(QLAB[q], () => {
+    const x = chProg[chCur]; if (!x) return react('🤔', '먼저 코드를 골라요!');
+    x.c = ROOTS[parseCh(x.c).r] + q; chSave(); chordRender(); if (!chTimer) chordStrum(x.c);
+  }, 'chQual').classList.toggle('cur', !!sp && sp.q === q);
+  // 진행: 코드 이름 아래 박자 점, 4박마다 마디선
+  let cum = 0;
+  chProg.forEach((x, i) => {
+    if (cum && cum % 4 === 0) { const bar = document.createElement('i'); bar.textContent = '|'; $('chProg').append(bar); }
+    chBtn(`${x.c}<small>${'●'.repeat(x.b)}</small>`, () => { chCur = i; chordRender(); if (!chTimer) chordStrum(x.c); }, 'chProg').classList.toggle('cur', i === chCur);
+    cum += x.b;
+  });
+  if (!chProg.length) $('chProg').textContent = '위 근음 버튼으로 코드를 넣고, 종류 버튼(m·7 등)으로 바꿔요';
+  $('chEdit').style.visibility = sel ? '' : 'hidden';
   chordShow();
 }
-function chordShow(){ // 지금 코드 이름·구성음, 건반에 구성음 빛내기
-  const c = document.body.classList.contains('chord') ? chProg[chCur] : '', iv = CHORDS[c] || [];
-  $('chName').textContent = c || ''; $('chTones').textContent = iv.map(i => PCN[i % 12]).join(' ');
+function chordShow(){ // 지금 코드 이름·구성음·길이, 건반에 구성음 빛내기
+  const x = document.body.classList.contains('chord') ? chProg[chCur] : null, iv = x ? tones(x.c) : [];
+  $('chName').textContent = x ? x.c : ''; $('chTones').textContent = iv.map(i => PCN[i % 12]).join(' ');
+  $('chLenTxt').textContent = x ? x.b + '박' : '';
   const want = iv.map(i => 60 + i), has = want.some(m => freeKeys.some(k => k.midi === m));
   freeKeys.forEach(k => k.el.classList.toggle('chd', has ? want.includes(k.midi) : iv.some(i => (k.midi - i) % 12 === 0) && k.midi >= 48 && k.midi < 84));
 }
-function chordStrum(c, when, dest){ const t = when || audio().currentTime; CHORDS[c].forEach((i, j) => piano(midiFreq(60 + i), t + j * .015, dest)); }
+function chordStrum(c, when, dest){ const t = when || audio().currentTime; tones(c).forEach((i, j) => piano(midiFreq(60 + i), t + j * .015, dest)); }
 function chordStop(){
   if (chTimer) clearInterval(chTimer); chTimer = 0;
   if (chBus) { chBus.disconnect(); chBus = null; }
@@ -753,32 +794,39 @@ const ARP = [0, 1, 2, 1, 0, 1, 2, 1]; // 펼친 화음: 한 박에 8분음표 �
 $('chPlay').onclick = () => {
   if (chTimer) return chordStop();
   if (!chProg.length) return react('🤔', '먼저 코드를 골라요!');
-  const a = audio(), B = 60 / +$('chBpm').value; chBus = a.createGain(); chBus.connect(master);
-  let beat = 0, next = a.currentTime + .15; chCur = 0; const bus = chBus;
+  const a = audio(); chBus = a.createGain(); chBus.connect(master);
+  let beat = 0, next = a.currentTime + .15; const bus = chBus;
   $('chPlay').textContent = '⏹ 멈춤';
-  chTimer = setInterval(() => { // 조금 앞서(0.2초) 예약해 박자가 흔들리지 않게
+  chTimer = setInterval(() => { // 조금 앞서(0.2초) 예약해 박자가 흔들리지 않게. 연주 중에 고쳐도 바로 반영
     while (next < a.currentTime + .2) {
-      const bi = beat % 4, ci = Math.floor(beat / 4) % chProg.length, c = chProg[ci], iv = CHORDS[c], pat = $('chPat').value;
-      if (bi === 0) piano(midiFreq(48 + iv[0] % 12), next, bus); // 첫 박: 낮은 근음
-      if (pat === 'block' || (pat === 'long' && bi === 0)) chordStrum(c, next, bus);
-      if (pat === 'arp') for (let h = 0; h < 2; h++) piano(midiFreq(60 + iv[ARP[bi * 2 + h]]), next + h * B / 2, bus);
+      const seq = []; chProg.forEach((x, i) => { for (let k = 0; k < x.b; k++) seq.push([i, k]); });
+      if (!seq.length) return chordStop();
+      const pos = beat % seq.length, [ci, k] = seq[pos], bi = pos % 4, iv = tones(chProg[ci].c), pat = $('chPat').value;
+      if (k === 0 || bi === 0) piano(midiFreq(48 + iv[0] % 12), next, bus); // 코드가 바뀔 때·마디 첫 박: 낮은 근음
+      if (pat === 'block' || (pat === 'long' && k === 0)) chordStrum(chProg[ci].c, next, bus);
+      if (pat === 'arp') for (let h = 0; h < 2; h++) piano(midiFreq(60 + iv[ARP[bi * 2 + h]]), next + h * 30 / +$('chBpm').value, bus);
       const at = next;
       setTimeout(() => {
         if (bus !== chBus) return;
         if (chCur !== ci) { chCur = ci; chordRender(); }
         document.querySelectorAll('#chBeat span').forEach((s, i) => s.classList.toggle('on', i === bi));
       }, Math.max(0, (at - a.currentTime) * 1000));
-      beat++; next += B;
+      beat++; next += 60 / +$('chBpm').value;
     }
   }, 50);
 };
-$('chDel').onclick = () => { chordStop(); chProg.pop(); chCur = Math.max(0, Math.min(chCur, chProg.length - 1)); chSave(); chordRender(); };
+const chEdit = f => () => { if (chProg[chCur]) { f(chProg[chCur]); chSave(); chordRender(); } };
+$('chMinus').onclick = chEdit(x => x.b = Math.max(1, x.b - 1));
+$('chPlus').onclick = chEdit(x => x.b = Math.min(8, x.b + 1));
+$('chLeft').onclick = chEdit(() => { if (chCur > 0) { chProg.splice(chCur - 1, 0, chProg.splice(chCur, 1)[0]); chCur--; } });
+$('chRight').onclick = chEdit(() => { if (chCur < chProg.length - 1) { chProg.splice(chCur + 1, 0, chProg.splice(chCur, 1)[0]); chCur++; } });
+$('chX').onclick = chEdit(() => { chProg.splice(chCur, 1); chCur = Math.max(0, Math.min(chCur, chProg.length - 1)); });
 $('chClr').onclick = () => { chordStop(); chProg = []; chCur = 0; chSave(); chordRender(); };
-$('chPre').onchange = () => { if (!$('chPre').value) return; chordStop(); chProg = $('chPre').value.split(' '); chCur = 0; $('chPre').value = ''; chSave(); chordRender(); };
+$('chPre').onchange = () => { if (!$('chPre').value) return; chordStop(); chProg = chParse($('chPre').value); chCur = 0; $('chPre').value = ''; chSave(); chordRender(); };
 function chordCheck(midi){ // 0.6초 안에 누른 음들이 지금 코드 구성음을 모두 포함하면 칭찬
-  const now = performance.now(), c = chProg[chCur]; if (!c) return;
+  const now = performance.now(), x = chProg[chCur]; if (!x) return;
   chRecent = chRecent.filter(r => now - r.t < 600); chRecent.push({pc: midi % 12, t: now});
-  if (CHORDS[c].every(i => chRecent.some(r => r.pc === i % 12))) { chRecent = []; setTimeout(() => react('😻', `${c} 코드 딩동댕! 👏`), 0); }
+  if (tones(x.c).every(i => chRecent.some(r => r.pc === i % 12))) { chRecent = []; setTimeout(() => react('😻', `${x.c} 코드 딩동댕! 👏`), 0); }
 }
 
 // ---------- 메인 메뉴와 화면 전환 ----------
