@@ -319,16 +319,29 @@ function tick(when){
 const whiteEls = KEYS.map((_, i) => {
   const el = document.createElement('div');
   el.className = 'w'; el.textContent = NAMES[i]; el.style.setProperty('--c', COLORS[i]); el.style.borderTop = `8px solid ${COLORS[i]}`;
-  el.onpointerdown = e => { e.preventDefault(); press(el, i); };
+  el.onpointerdown = e => { e.preventDefault(); tap(e, i); };
   $('piano').append(el); return el;
 });
 const blackEls = BLACK.map(([i], j) => {
   const el = document.createElement('div');
   el.className = 'b'; el.style.left = `calc(${(i + 1) / 8 * 100}% - 3.5%)`;
-  el.onpointerdown = e => { e.preventDefault(); press(el, 8 + j); };
+  el.onpointerdown = e => { e.preventDefault(); tap(e, 8 + j); };
   $('piano').append(el); return el;
 });
 const keyEls = [...whiteEls, ...blackEls];
+// 건반 터치: 다음에 칠 건반 근처(옆 건반의 가장자리)를 눌러도 그 건반으로 인정
+// 인정 범위 = 흰건반 너비의 35% × 판정 너그러움(너그럽게 1.5 / 보통 1 / 정확하게 0.7)
+function tap(e, i){
+  const k = snapKey(e, i); press(keyEls[k], k);
+}
+function snapKey(e, i){
+  if (!playing || auto || paused || !$('maker').hidden) return i;
+  const n = notes.find(n => !n.judged);
+  if (!n || n.k === i || t0 + n.beat * BEAT - clock() > BEAT * 1.5) return i; // 아직 먼 음이면 누른 그대로
+  const r = keyEls[n.k].getBoundingClientRect(), mg = whiteEls[0].offsetWidth * .35 * JUDGE();
+  const bottom = n.k < 8 ? r.bottom : r.bottom + mg; // 검은건반은 아래쪽으로도 조금 더
+  return e.clientX > r.left - mg && e.clientX < r.right + mg && e.clientY < bottom ? n.k : i;
+}
 $('hit').onpointerdown = e => { e.preventDefault(); press($('hit'), -1); };
 
 function flash(el){ el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 120); }
@@ -681,7 +694,7 @@ function drawSheet(now, total){
   const scroll = $('view').value === 'scroll';                // 흐르는 악보: 진행선 고정, 악보가 왼쪽으로 흐름
   const rows = H >= 230 && !scroll ? 2 : 1, rh = H / rows;   // 화면이 높으면 두 줄
   const g = Math.max(6, Math.min(14, (rh - 20) / 9));        // 오선 줄 간격
-  const L = 12 + g * 2.4, R = 10;                            // 왼쪽: 박자표 자리
+  const L = 14 + g * 4.2, R = 10;                            // 왼쪽: 높은음자리표 + 박자표 자리
   const mpp = Math.max(1, Math.floor((W - L - R) / (m * Math.max(34, g * 3.4)))); // 한 줄에 들어갈 마디 수
   const mw = (W - L - R) / mpp, per = mpp * rows;            // 마디 너비, 한 쪽의 마디 수
   const beatNow = Math.min(Math.max(0, (now - t0) / BEAT), total - 1e-6);
@@ -700,11 +713,28 @@ function drawSheet(now, total){
   // 오선, 마디선, 박자표
   cx.strokeStyle = '#555'; cx.fillStyle = '#555'; cx.lineWidth = 1.2;
   const barX = mi => HX + (mi * m - beatNow) * PB - g * .9;   // 흐르는 악보의 마디선 위치
-  const staffHead = top => { // 흐르는 악보: 왼쪽 박자표 자리 (흘러간 음표를 가림)
+  const sig = top => { // 높은음자리표(아래서 둘째 줄 '솔'을 감음) + 박자표
+    const X = v => 8 + g * 1.3 + v * g, Y = v => top + 3 * g + v * g;
+    cx.save(); cx.strokeStyle = cx.fillStyle = '#555'; cx.lineWidth = Math.max(1.5, g * .2); cx.lineCap = 'round';
+    cx.beginPath();
+    cx.moveTo(X(.3), Y(-.25));
+    cx.bezierCurveTo(X(.25), Y(-.8), X(-.65), Y(-.6), X(-.6), Y(.05));
+    cx.bezierCurveTo(X(-.55), Y(.85), X(1.05), Y(.85), X(1), Y(-.05));
+    cx.bezierCurveTo(X(.95), Y(-1), X(-.75), Y(-1.6), X(-.75), Y(-2.6));
+    cx.bezierCurveTo(X(-.75), Y(-3.6), X(.35), Y(-4.6), X(.3), Y(-3.7));
+    cx.bezierCurveTo(X(.25), Y(-3.1), X(-.1), Y(-2.9), X(-.05), Y(-2.3));
+    cx.lineTo(X(.3), Y(1.7));
+    cx.bezierCurveTo(X(.35), Y(2.3), X(-.4), Y(2.4), X(-.45), Y(1.9));
+    cx.stroke();
+    cx.beginPath(); cx.arc(X(-.32), Y(1.95), g * .22, 0, 7); cx.fill();
+    cx.font = 'bold ' + g * 2 + 'px serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillText(m, 10 + g * 3.2, top + g); cx.fillText(4, 10 + g * 3.2, top + 3 * g);
+    cx.restore();
+  };
+  const staffHead = top => { // 흐르는 악보: 왼쪽 자리표·박자표 자리 (흘러간 음표를 가림)
     cx.fillStyle = '#fff'; cx.fillRect(0, 0, L, H); cx.fillStyle = cx.strokeStyle = '#555'; cx.lineWidth = 1.2;
     cx.beginPath(); for (let i = 0; i < 5; i++) { cx.moveTo(8, top + i * g); cx.lineTo(L, top + i * g); } cx.moveTo(8, top); cx.lineTo(8, top + 4 * g); cx.stroke();
-    cx.font = 'bold ' + g * 2 + 'px serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
-    cx.fillText(m, 10 + g * 1.1, top + g); cx.fillText(4, 10 + g * 1.1, top + 3 * g); cx.textBaseline = 'alphabetic';
+    sig(top);
   };
   if (scroll) {
     const top = staffTop(0), end = Math.min(W, barX(M));
@@ -728,10 +758,7 @@ function drawSheet(now, total){
       cx.moveTo(x0, top); cx.lineTo(x0, top + 4 * g); cx.moveTo(x1, top); cx.lineTo(x1, top + 4 * g);
       cx.stroke();
       if (mi === M - 1) cx.fillRect(x1 - 4, top, 4, 4 * g + 1); // 곡의 끝: 굵은 마침줄
-      if (c === 0) {
-        cx.font = 'bold ' + g * 2 + 'px serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
-        cx.fillText(m, 10 + g * 1.1, top + g); cx.fillText(4, 10 + g * 1.1, top + 3 * g); cx.textBaseline = 'alphabetic';
-      }
+      if (c === 0) sig(top);
       cx.font = Math.max(9, g * .9) + 'px sans-serif'; cx.fillStyle = '#aaa'; cx.textAlign = 'left';
       cx.fillText(mi + 1 + mOff, (c ? x0 : L) + 2, top - g * 1.2); cx.fillStyle = '#555'; // 마디 번호
     }
@@ -759,37 +786,72 @@ function drawSheet(now, total){
     }
     prevEnd = Math.max(prevEnd, n.beat + n.len);
   }
-  // 음표
-  const nx = notes.find(n => !n.judged), lab = Math.max(10, Math.min(15, g * 1.2 + 2));
-  for (const n of notes) {
-    const q = pos(n.beat); if (!q.vis) continue;
-    const s = stepOf(n.k), x = q.x + g * .6, y = yOf(q.r, s), rx = g * .62, top = staffTop(q.r);
-    if (n === nx && !auto) { cx.fillStyle = 'rgba(255,140,66,.3)'; cx.beginPath(); cx.arc(x, y, g * 1.3, 0, 7); cx.fill(); } // 다음 음
-    const col = resColor(n);
+  // 음표: 마디를 넘는 음은 마디선에서 나눠 그리고 붙임줄로 잇고, 한 박 안의 8분음표 두 개는 꼬리 대신 막대로 묶음
+  const nx = notes.find(n => !n.judged), lab = Math.max(10, Math.min(15, g * 1.2 + 2)), rx = g * .62;
+  const parts = n => { // [시작 박, 길이] 조각들
+    const out = []; let b = n.beat; const e = n.beat + n.len;
+    while (e - b > 1e-6) { const l = Math.min(e, (Math.floor(b / m + 1e-9) + 1) * m) - b; out.push([b, l]); b += l; }
+    return out;
+  };
+  const beam = new Map(); // 음 → 짝 음 (기둥 방향은 두 음의 평균 높이로)
+  for (let i = 0; i + 1 < notes.length; i++) {
+    const a = notes[i], b = notes[i + 1];
+    if (a.len === .5 && b.len === .5 && a.beat % 1 === 0 && b.beat === a.beat + .5 && pos(a.beat).vis && pos(b.beat).vis) { beam.set(a, b); beam.set(b, a); }
+  }
+  const beamUp = n => (stepOf(n.k) + stepOf(beam.get(n).k)) / 2 < 6;
+  const heads = new Map(); // 묶음 막대를 그리려고 머리 위치 기억
+  const drawHead = (n, beat, len, first) => {
+    const q = pos(beat); if (!q.vis) return null;
+    const s = stepOf(n.k), x = q.x + g * .6, y = yOf(q.r, s), top = staffTop(q.r), col = resColor(n);
+    if (first && n === nx && !auto) { cx.fillStyle = 'rgba(255,140,66,.3)'; cx.beginPath(); cx.arc(x, y, g * 1.3, 0, 7); cx.fill(); } // 다음 음
     cx.globalAlpha = n.res === 'a' ? .5 : 1;
     cx.strokeStyle = '#444'; cx.lineWidth = 1.2;
     if (s === 0) { cx.beginPath(); cx.moveTo(x - g, y); cx.lineTo(x + g, y); cx.stroke(); } // 덧줄 (가운데 도)
-    if (n.k >= 8 && !isDrum()) { cx.fillStyle = '#444'; cx.font = g * 1.6 + 'px serif'; cx.textAlign = 'center'; cx.fillText('♭', x - g * 1.35, y + g * .45); }
+    if (first && n.k >= 8 && !isDrum()) { cx.fillStyle = '#444'; cx.font = g * 1.6 + 'px serif'; cx.textAlign = 'center'; cx.fillText('♭', x - g * 1.35, y + g * .45); }
     // 머리: 2박 이상은 속이 빈 음표
     cx.beginPath(); cx.ellipse(x, y, rx, g * .45, -.35, 0, 7);
-    if (n.len >= 2) { cx.fillStyle = '#fff'; cx.fill(); cx.strokeStyle = col; cx.lineWidth = Math.max(2, g * .22); cx.stroke(); }
+    if (len >= 2) { cx.fillStyle = '#fff'; cx.fill(); cx.strokeStyle = col; cx.lineWidth = Math.max(2, g * .22); cx.stroke(); }
     else { cx.fillStyle = col; cx.fill(); }
-    // 기둥과 꼬리 (온음표는 기둥 없음)
-    if (n.len < 4) {
-      const up = s < 6, sx = up ? x + rx - .8 : x - rx + .8, sy = up ? y - 3.3 * g : y + 3.3 * g;
+    // 기둥과 꼬리 (온음표는 기둥 없음, 묶인 8분음표는 아래에서 막대와 함께)
+    const up = beam.has(n) ? beamUp(n) : s < 6;
+    if (len < 4 && !beam.has(n)) {
+      const sx = up ? x + rx - .8 : x - rx + .8, sy = up ? y - 3.3 * g : y + 3.3 * g;
       cx.strokeStyle = col; cx.lineWidth = Math.max(1.5, g * .14);
       cx.beginPath(); cx.moveTo(sx, y); cx.lineTo(sx, sy); cx.stroke();
-      if (n.len <= .5) { cx.beginPath(); cx.moveTo(sx, sy); cx.quadraticCurveTo(sx + g * 1.1, up ? sy + g * 1.2 : sy - g * 1.2, sx + g * .7, up ? sy + g * 2.2 : sy - g * 2.2); cx.stroke(); }
+      if (len <= .5) { cx.beginPath(); cx.moveTo(sx, sy); cx.quadraticCurveTo(sx + g * 1.1, up ? sy + g * 1.2 : sy - g * 1.2, sx + g * .7, up ? sy + g * 2.2 : sy - g * 2.2); cx.stroke(); }
     }
     // 점음표 (1.5박, 3박)
-    if ([.75, 1.5, 3].includes(n.len)) { cx.fillStyle = col; cx.beginPath(); cx.arc(x + g * 1.1, y - (s % 2 ? 0 : g * .3), g * .17, 0, 7); cx.fill(); }
+    if ([.75, 1.5, 3].includes(len)) { cx.fillStyle = col; cx.beginPath(); cx.arc(x + g * 1.1, y - (s % 2 ? 0 : g * .3), g * .17, 0, 7); cx.fill(); }
     cx.globalAlpha = 1;
-    // 계이름 (오선 아래)
-    if (!isDrum()) {
+    // 계이름 (오선 아래, 첫 조각에만)
+    if (first && !isDrum()) {
       cx.fillStyle = n.res ? '#aaa' : colorOf(n.k) === '#ffd43b' ? '#e0a800' : colorOf(n.k);
       cx.font = 'bold ' + lab + 'px sans-serif'; cx.textAlign = 'center';
       cx.fillText(labelOf(n.k), x, top + 6 * g + lab * .4);
     }
+    return {x, y, r: q.r, up, col};
+  };
+  for (const n of notes) {
+    const ps = parts(n).map(([b, l], i) => drawHead(n, b, l, i === 0));
+    if (ps[0]) heads.set(n, ps[0]);
+    // 붙임줄: 같은 줄이면 두 머리를 잇고, 다른 줄/화면 밖이면 짧게
+    for (let i = 0; i + 1 < ps.length; i++) {
+      const a = ps[i], b = ps[i + 1]; if (!a && !b) continue;
+      const h = a || b, dy = h.up ? g * .55 : -g * .55, bend = h.up ? g * .7 : -g * .7;
+      const x1 = a ? a.x + rx * .8 : b.x - g * 2.2, x2 = b && (!a || b.r === a.r) ? b.x - rx * .8 : a.x + g * 2.2;
+      cx.strokeStyle = h.col; cx.lineWidth = Math.max(1.5, g * .16);
+      cx.beginPath(); cx.moveTo(x1, h.y + dy); cx.quadraticCurveTo((x1 + x2) / 2, h.y + dy + bend, x2, h.y + dy); cx.stroke();
+    }
+  }
+  // 8분음표 묶음 막대
+  for (const [a, b] of beam) {
+    if (a.beat > b.beat) continue;
+    const A = heads.get(a), B = heads.get(b); if (!A || !B) continue;
+    const up = beamUp(a), sx1 = up ? A.x + rx - .8 : A.x - rx + .8, sx2 = up ? B.x + rx - .8 : B.x - rx + .8;
+    const by = up ? Math.min(A.y, B.y) - 3.3 * g : Math.max(A.y, B.y) + 3.3 * g, bh = g * .45 * (up ? 1 : -1);
+    cx.lineWidth = Math.max(1.5, g * .14);
+    for (const [h, sx] of [[A, sx1], [B, sx2]]) { cx.strokeStyle = h.col; cx.beginPath(); cx.moveTo(sx, h.y); cx.lineTo(sx, by); cx.stroke(); }
+    cx.fillStyle = '#555'; cx.beginPath(); cx.moveTo(sx1, by); cx.lineTo(sx2, by); cx.lineTo(sx2, by + bh); cx.lineTo(sx1, by + bh); cx.fill();
   }
   if (scroll) staffHead(staffTop(0));
   // 판정 글자 (오선 위에서 떠오르며 사라짐)
