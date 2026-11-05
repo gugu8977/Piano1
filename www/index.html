@@ -531,6 +531,8 @@ addEventListener('keydown', e => {
 $('listen').onclick = () => begin(true);
 $('start').onclick = () => { boost = 1; begin(false); };
 // 게임 시작. isAuto=true면 시범 연주(정해진 시간에 저절로 치고, 점수·기록 없음)
+var lead = 0; // 준비 마디 박 수 (악보 화면에서만)
+const mLabel = (mi, m) => mi * m < lead ? '준비' : mi - lead / m + 1 + mOff; // 악보의 마디 번호
 function begin(isAuto){
   auto = isAuto;
   paused = false; $('pause').textContent = '⏸ 멈춤'; $('pause').disabled = false; $('listen').disabled = false;
@@ -544,13 +546,15 @@ function begin(isAuto){
     const part = notes.filter(n => n.beat >= s && n.beat < e);
     if (part.length) { notes = part; notes.forEach(n => n.beat -= s); mOff = +$('rgA').value - 1; }
   }
+  // 악보 화면: 첫 음 전에 빈 '준비' 마디 하나 (진행선이 움직이고 박자 드럼이 들려서 박자를 미리 느낌)
+  lead = sheet() ? meter() : 0; notes.forEach(n => n.beat += lead);
   t0 = a.currentTime + LEAD * BEAT;
   for (let i = 0; i < LEAD; i++) tick(a.currentTime + i * BEAT);
   // 곡 전체 박자 드럼 미리 예약 (멈춤 시 오디오 시계와 함께 멈춤). 이전 판의 박자는 연결을 끊어 없앰
   if (metroGain) metroGain.disconnect();
   metroGain = a.createGain(); metroGain.gain.value = metroOn ? 1 : 0; metroGain.connect(master);
   const last = notes[notes.length - 1], total = last.beat + last.len;
-  if (!learn()) for (let i = 0; i < total; i++) beatDrum(t0 + i * BEAT, i % meter() === 0);
+  for (let i = 0; i < total; i++) if (!learn() || i < lead) beatDrum(t0 + i * BEAT, i % meter() === 0); // 기다려 주기는 준비 마디만
   score = 0; combo = 0; fx = []; offset = 0; playing = true;
   $('score').textContent = 0; react('😺', '준비~ 하나, 둘, 셋, 넷!');
   // 시범 연주: 모든 음을 정확한 시간에 미리 예약
@@ -747,7 +751,7 @@ function drawSheet(now, total){
     cx.stroke();
     if (barX(M) < W) cx.fillRect(barX(M) - 4, top, 4, 4 * g + 1); // 곡의 끝
     cx.font = Math.max(9, g * .9) + 'px sans-serif'; cx.fillStyle = '#aaa'; cx.textAlign = 'left';
-    for (let mi = 0; mi < M; mi++) { const x = barX(mi); if (x > L - g * 3 && x < W) cx.fillText(mi + 1 + mOff, x + 3, top - g * 1.2); }
+    for (let mi = 0; mi < M; mi++) { const x = barX(mi); if (x > L - g * 3 && x < W) cx.fillText(mLabel(mi, m), x + 3, top - g * 1.2); }
     cx.fillStyle = '#555';
   }
   for (let r = 0; r < rows && !scroll; r++) {
@@ -763,7 +767,7 @@ function drawSheet(now, total){
       if (mi === M - 1) cx.fillRect(x1 - 4, top, 4, 4 * g + 1); // 곡의 끝: 굵은 마침줄
       if (c === 0) sig(top);
       cx.font = Math.max(9, g * .9) + 'px sans-serif'; cx.fillStyle = '#aaa'; cx.textAlign = 'left';
-      cx.fillText(mi + 1 + mOff, (c ? x0 : L) + 2, top - g * 1.2); cx.fillStyle = '#555'; // 마디 번호
+      cx.fillText(mLabel(mi, m), (c ? x0 : L) + 2, top - g * 1.2); cx.fillStyle = '#555'; // 마디 번호
     }
   }
   // 진행선
@@ -774,7 +778,7 @@ function drawSheet(now, total){
     cx.fillStyle = '#ff8c42'; cx.fillRect(p.x - 1.5, top - 2 * g, 3, 8 * g);
   }
   // 쉼표 (음과 음 사이 빈 박)
-  let prevEnd = 0;
+  let prevEnd = lead; // 준비 마디에는 쉼표를 그리지 않음
   cx.strokeStyle = '#555'; cx.lineWidth = Math.max(1.5, g * .18);
   for (const n of notes) {
     for (let b = prevEnd; b < n.beat - 1e-6; ) { // 마디를 넘지 않게 나눠 그림
