@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>동요 리듬 놀이</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ff8c42">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <style>
   [hidden]{display:none!important}
   body{margin:0;font-family:sans-serif;background:#fff7e6;color:#333;text-align:center;user-select:none;-webkit-user-select:none;
@@ -130,6 +135,7 @@
   /* 메인 메뉴: 떠다니는 음표, 색색 타일 */
   #home{background:linear-gradient(160deg,#fff4e0,#ffe3ee 55%,#dff0ff)}
   #home:not([hidden]){animation:panelIn .3s ease-out}
+  #install{position:absolute;top:8px;right:8px;font-size:14px;background:#ff8c42;color:#fff;box-shadow:0 3px 0 #d9622a}
   #home h2{font-size:min(40px,9vh);color:#ff7b2e;text-shadow:0 3px 0 #fff,0 5px 12px #f0a04066;animation:bob 3s ease-in-out infinite}
   .menu button{--tc:#ff8c42;background:linear-gradient(#fff,#fff7ef);border:3px solid var(--tc);box-shadow:0 6px 0 var(--tc),0 9px 16px #0002;animation:popIn .5s backwards}
   .menu button:nth-child(1){--tc:#ff6b6b;animation-delay:.05s}
@@ -191,6 +197,7 @@
 <body class="game">
 <!-- 메인 메뉴 -->
 <div id="home">
+  <button id="install" hidden>📲 앱으로 설치</button>
   <h2>🎵 동요 리듬 놀이</h2>
   <div class="menu">
     <button data-go="play"><b>🎮</b>박자 게임<small>박자에 맞춰 쳐요</small></button>
@@ -1345,6 +1352,14 @@ function fanfare(){
 }
 // 시작 시 저장된 설정 반영 (모든 정의가 끝난 뒤 실행)
 $('inst').onchange(); updateLabels(); showBest();
+// 홈 화면에 앱처럼 설치 + 오프라인 (웹에서만. 안드로이드 앱(localhost)·파일로 열 때는 건너뜀)
+if ('serviceWorker' in navigator && location.protocol === 'https:' && location.hostname !== 'localhost') {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+  let ask = null;
+  addEventListener('beforeinstallprompt', e => { e.preventDefault(); ask = e; $('install').hidden = false; });
+  $('install').onclick = () => { if (ask) { ask.prompt(); ask.userChoice.finally(() => { ask = null; $('install').hidden = true; }); } };
+  addEventListener('appinstalled', () => { $('install').hidden = true; react('😻', '설치 완료! 홈 화면에서 열어요'); });
+}
 </script>
 </body>
 </html>

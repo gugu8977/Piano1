@@ -50,6 +50,7 @@ capacitor.config.json
 ## 실행
 
 - **PC 브라우저**: `www/index.html`을 열면 됩니다.
+- **폰에 앱처럼 설치 (추천)**: 폰 Chrome으로 https://gugu8977.github.io/Piano1/ 을 열고 메인 메뉴 오른쪽 위 **📲 앱으로 설치** (또는 Chrome 메뉴 → 홈 화면에 추가). 한 번 열면 인터넷 없이도 실행되고, 인터넷이 되면 자동으로 최신 버전이 됩니다.
 - **안드로이드 APK 받기**: 폰에서 [download/piano1.apk](https://github.com/gugu8977/Piano1/raw/main/download/piano1.apk)를 받아 설치합니다 (처음 한 번 "출처를 알 수 없는 앱" 허용 필요).
 - **안드로이드 직접 빌드**: 필요 도구는 Node.js, JDK 21, Android SDK(`ANDROID_HOME`)입니다.
 
